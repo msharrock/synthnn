@@ -88,7 +88,8 @@ def main(args=None):
                          channel_base_power=args.channel_base_power, add_two_up=args.add_two_up, normalization=args.normalization,
                          activation=args.activation, output_activation=args.out_activation, is_3d=args.net3d,
                          interp_mode=args.interp_mode, enable_dropout=nsyn > 1, enable_bias=args.enable_bias,
-                         n_input=args.n_input, n_output=args.n_output, no_skip=args.no_skip, ord_params=args.ord_params)
+                         n_input=args.n_input, n_output=args.n_output, no_skip=args.no_skip,
+                         ord_params=args.ord_params+[device] if args.ord_params is not None else None)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power,

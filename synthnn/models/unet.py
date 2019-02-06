@@ -69,7 +69,7 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int]=None):
+                 ord_params:Tuple[int,int,int,torch.device]=None):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -203,8 +203,9 @@ class Unet(torch.nn.Module):
 class _OrdLoss(nn.Module):
     def __init__(self, params:Tuple[int,int,int], is_3d:bool=False):
         super(_OrdLoss, self).__init__()
-        self.range = np.arange(*params)
-        self.trange = self._trange(*params, is_3d)
+        *rng, self.device = params
+        self.range = np.arange(*rng)
+        self.trange = self._trange(*rng, is_3d).to(self.device)
         self.mae = nn.L1Loss()
         self.ce = nn.CrossEntropyLoss()
 
@@ -215,7 +216,7 @@ class _OrdLoss(nn.Module):
         return trng if not is_3d else trng[...,None]
 
     def _digitize(self, x:torch.Tensor):
-        return torch.from_numpy(np.digitize(np.asarray(x), self.range)).squeeze()
+        return torch.from_numpy(np.digitize(x.cpu().detach().numpy(), self.range)).squeeze().to(self.device)
 
     def predict(self, yd_hat:torch.Tensor):
         p = F.softmax(yd_hat, dim=1)

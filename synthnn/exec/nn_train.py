@@ -167,6 +167,9 @@ def main(args=None):
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
 
+        # define device to put tensors on
+        device, use_cuda, n_gpus = get_device(args, logger)
+
         # import and initialize mixed precision training package
         amp_handle = None
         if args.fp16:
@@ -195,7 +198,8 @@ def main(args=None):
                          channel_base_power=args.channel_base_power, add_two_up=args.add_two_up, normalization=args.normalization,
                          activation=args.activation, output_activation=args.out_activation, interp_mode=args.interp_mode,
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
-                         n_input=n_input, n_output=n_output, no_skip=args.no_skip, ord_params=args.ord_params)
+                         n_input=n_input, n_output=n_output, no_skip=args.no_skip,
+                         ord_params=args.ord_params + [device] if args.ord_params is not None else None)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,
@@ -204,9 +208,6 @@ def main(args=None):
             raise SynthNNError(f'Invalid NN type: {args.nn_arch}. {{nconv, unet, vae}} are the only supported options.')
         model.train(True)
         logger.debug(model)
-
-        # define device to put tensors on
-        device, use_cuda, n_gpus = get_device(args, logger)
 
         # put the model on the GPU if available and desired
         if use_cuda: model.cuda(device=device)
