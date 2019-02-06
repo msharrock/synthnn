@@ -20,6 +20,7 @@ __all__ = ['Unet']
 import logging
 from typing import Optional, Tuple, Union
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -54,6 +55,7 @@ class Unet(torch.nn.Module):
         n_input (int): number of input channels to network [Default=1]
         n_output (int): number of output channels for network [Default=1]
         no_skip (bool): use no skip connections [Default=False]
+        ord_params (Tuple[int,int,int]): parameters for ordinal regression (start,end,step) [Default=None]
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -66,7 +68,8 @@ class Unet(torch.nn.Module):
     def __init__(self, n_layers:int, kernel_size:int=3, dropout_p:float=0, channel_base_power:int=5,
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
-                 enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False):
+                 enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
+                 ord_params:Tuple[int,int,int]=None):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -84,7 +87,8 @@ class Unet(torch.nn.Module):
         self.n_input = n_input
         self.n_output = n_output
         self.no_skip = no_skip
-        self.criterion = nn.MSELoss()
+        self.ord_params = ord_params
+        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, is_3d)
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
         # define the model layers here to make them visible for autograd
@@ -96,7 +100,7 @@ class Unet(torch.nn.Module):
                                                        lc(n), lc(n), (kernel_size+self.a2u, kernel_size),
                                                        act=(a, a), norm=(nm, nm))
                                         for n in reversed(range(1,nl+1))])
-        self.finish = self._final_conv(lc(0) + n_input if not no_skip else lc(0), n_output, oa, bias=enable_bias)
+        self.finish = self._final(lc(0) + n_input if not no_skip else lc(0), n_output, oa, bias=enable_bias)
         self.upsampconvs = nn.ModuleList([self._conv(lc(n+1), lc(n), 3, bias=enable_bias)
                                           for n in reversed(range(nl+1))])
 
@@ -177,9 +181,51 @@ class Unet(torch.nn.Module):
             self._conv_act(mid_c, out_c, kernel_sz[1], act[1], norm[1]))
         return dca
 
-    def _final_conv(self, in_c:int, out_c:int, out_act:Optional[str]=None, bias:bool=False):
-        c = self._conv(in_c, out_c, 1, bias=bias)
-        fc = nn.Sequential(c, get_act(out_act)) if out_act != 'linear' else nn.Sequential(c)
+    def _final(self, in_c:int, out_c:int, out_act:Optional[str]=None, bias:bool=False):
+        if self.ord_params is None:
+            c = self._conv(in_c, out_c, 1, bias=bias)
+            fc = nn.Sequential(c, get_act(out_act)) if out_act != 'linear' else c
+        else:
+            n_classes = np.arange(self.ord_params[0], self.ord_params[1]+1, self.ord_params[2]).size
+            fc = self._conv(in_c, n_classes, 1, bias=bias)
         return fc
 
-    predict = forward
+    def predict(self, x:torch.Tensor):
+        if self.ord_params is None:
+            return self.forward(x)
+        else:
+            out = self.forward(x)
+            y_hat = self.criterion.predict(out)
+            return y_hat
+
+
+
+class _OrdLoss(nn.Module):
+    def __init__(self, params:Tuple[int,int,int], is_3d:bool=False):
+        super(_OrdLoss, self).__init__()
+        self.range = np.arange(*params)
+        self.trange = self._trange(*params, is_3d)
+        self.mae = nn.L1Loss()
+        self.ce = nn.CrossEntropyLoss()
+
+    @staticmethod
+    def _trange(start, stop, step, is_3d):
+        rng = np.arange(start, stop+1, step, dtype=np.float32)
+        trng = torch.from_numpy(rng[:,None,None])
+        return trng if not is_3d else trng[...,None]
+
+    def _digitize(self, x:torch.Tensor):
+        return torch.from_numpy(np.digitize(np.asarray(x), self.range)).squeeze()
+
+    def predict(self, yd_hat:torch.Tensor):
+        p = F.softmax(yd_hat, dim=1)
+        intensity_bins = torch.ones_like(yd_hat) * self.trange
+        y_hat = torch.sum(p * intensity_bins, dim=1, keepdim=True)
+        return y_hat
+
+    def forward(self, y:torch.Tensor, yd_hat:torch.Tensor):
+        yd = self._digitize(y)
+        CE = self.ce(yd_hat, yd)
+        y_hat = self.predict(yd_hat)
+        MAE = self.mae(y_hat, y)
+        return CE + MAE

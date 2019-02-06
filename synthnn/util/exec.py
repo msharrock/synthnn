@@ -85,6 +85,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "patch_size": args.patch_size,
             "pin_memory": args.pin_memory,
             "sample_axis": args.sample_axis,
+            "seed": args.seed,
             "tiff": args.tiff,
             "verbosity": args.verbosity
         },
@@ -103,6 +104,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "nn_arch": args.nn_arch,
             "no_skip": args.no_skip,
             "normalization": args.normalization,
+            "ord_params": args.ord_params,
             "out_activation": args.out_activation,
         },
         "Training Options": {

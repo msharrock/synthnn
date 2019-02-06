@@ -74,6 +74,7 @@ def arg_parser():
                             help='plot the loss vs epoch and save at the filename provided here [Default=None]')
     options.add_argument('-sa', '--sample-axis', type=int, default=2,
                             help='axis on which to sample for 2d (None for random orientation when NIfTI images given) [Default=2]')
+    options.add_argument('-sd', '--seed', type=int, default=0, help='set seed for reproducibility [Default=0]')
     options.add_argument('--tiff', action='store_true', default=False, help='dataset are tiff images [Default=False]')
     options.add_argument('-vs', '--valid-split', type=float, default=0.2,
                           help='split the data in source_dir and target_dir into train/validation '
@@ -121,6 +122,8 @@ def arg_parser():
     nn_options.add_argument('-ns', '--no-skip', action='store_true', default=False, help='do not use skip connections in unet [Default=False]')
     nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'none'),
                             help='type of normalization layer to use in network [Default=instance]')
+    nn_options.add_argument('-ord', '--ord-params', type=int, nargs=3, default=None,
+                            help='ordinal regression params (start, stop, step) [Default=None]')
     nn_options.add_argument('-oac', '--out-activation', type=str, default='linear', choices=('relu', 'lrelu', 'linear'),
                             help='type of activation to use in network on output [Default=linear]')
 
@@ -160,6 +163,10 @@ def main(args=None):
     setup_log(args.verbosity)
     logger = logging.getLogger(__name__)
     try:
+        # set random seeds for reproducibility
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+
         # import and initialize mixed precision training package
         amp_handle = None
         if args.fp16:
@@ -173,6 +180,9 @@ def main(args=None):
         if args.net3d and args.tiff: logger.warning('Cannot train a 3D network with TIFF images, creating a 2D network.')
         n_input, n_output = len(args.source_dir), len(args.target_dir)
 
+        if args.ord_params is not None and (n_input > 1 or n_output > 1):
+            raise SynthNNError('Ordinal regression does not support multiple inputs/outputs.')
+
         # get the desired neural network architecture
         if args.nn_arch == 'nconv':
             from synthnn.models.nconvnet import SimpleConvNet
@@ -185,7 +195,7 @@ def main(args=None):
                          channel_base_power=args.channel_base_power, add_two_up=args.add_two_up, normalization=args.normalization,
                          activation=args.activation, output_activation=args.out_activation, interp_mode=args.interp_mode,
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
-                         n_input=n_input, n_output=n_output, no_skip=args.no_skip)
+                         n_input=n_input, n_output=n_output, no_skip=args.no_skip, ord_params=args.ord_params)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,
