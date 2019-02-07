@@ -52,12 +52,13 @@ class TestCLI(unittest.TestCase):
         self.predict_args = f'-s {self.train_dir} -o {self.out_dir}/test'.split()
         self.jsonfn = f'{self.out_dir}/test.json'
 
-    def __modify_ocf(self, jsonfn, multi=1):
+    def __modify_ocf(self, jsonfn, multi=1, varmap=False):
         with open(jsonfn, 'r') as f:
             arg_dict = json.load(f)
         with open(jsonfn, 'w') as f:
             arg_dict['Required']['predict_dir'] = [f'{self.nii_dir}'] * multi
             arg_dict['Required']['predict_out'] = f'{self.out_dir}/test'
+            arg_dict['Prediction Options']['varmap'] = varmap
             json.dump(arg_dict, f, sort_keys=True, indent=2)
 
     def test_nconv_nopatch_cli(self):
@@ -154,6 +155,25 @@ class TestCLI(unittest.TestCase):
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_unet_ord_2d_varmap_cli(self):
+        train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 --tiff '
+                             f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn, varmap=True)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_unet_ord_3d_varmap_cli(self):
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
+                                  f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn, varmap=True)
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 

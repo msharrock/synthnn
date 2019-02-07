@@ -100,7 +100,7 @@ class VAE(Unet):
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
-    def predict(self, x):
+    def predict(self, x, *args, **kwargs):
         """ predict from a sample `x` """
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)

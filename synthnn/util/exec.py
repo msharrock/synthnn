@@ -121,6 +121,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
         },
         "Prediction Options": {
             "monte_carlo": None,
+            "varmap": False,
         },
         "VAE Options": {
             "img_dim": args.img_dim,
