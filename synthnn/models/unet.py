@@ -104,11 +104,11 @@ class Unet(torch.nn.Module):
         self.upsampconvs = nn.ModuleList([self._conv(lc(n+1), lc(n), 3, bias=enable_bias)
                                           for n in reversed(range(nl+1))])
 
-    def forward(self, x:torch.Tensor) -> torch.Tensor:
-        x = self._fwd_skip(x) if not self.no_skip else self._fwd_no_skip(x)
+    def forward(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
+        x = self._fwd_skip(x, return_var) if not self.no_skip else self._fwd_no_skip(x, return_var)
         return x
 
-    def _fwd_skip(self, x:torch.Tensor) -> torch.Tensor:
+    def _fwd_skip(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
         dout = [x]
         dout.append(self.start(x))
         x = self._down(dout[-1])
@@ -120,10 +120,14 @@ class Unet(torch.nn.Module):
             x = ul(torch.cat((x, d), dim=1))
             x = self._dropout(self._up(x, dout[-i-1].shape[2:]))
             x = self.upsampconvs[i](x)
-        x = self.finish(torch.cat((x, dout[0]), dim=1))
+        if not return_var:
+            x = self.finish(torch.cat((x, dout[0]), dim=1)) if not isinstance(self.finish,nn.ModuleList) else \
+                self.finish[0](torch.cat((x, dout[0]), dim=1)) / self.finish[1](x)
+        else:
+            x = self.finish[1](x)
         return x
 
-    def _fwd_no_skip(self, x:torch.Tensor) -> torch.Tensor:
+    def _fwd_no_skip(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
         sz = [x.shape]
         x = self.start(x)
         x = self._down(x)
@@ -136,7 +140,10 @@ class Unet(torch.nn.Module):
             x = ul(x)
             x = self._dropout(self._up(x, sz[-i-1][2:]))
             x = self.upsampconvs[i](x)
-        x = self.finish(x)
+        if not return_var:
+            x = self.finish(x) if not isinstance(self.finish,nn.ModuleList) else self.finish[0](x) / self.finish[1](x)
+        else:
+            x = self.finish[1](x)
         return x
 
     def _down(self, x:torch.Tensor) -> torch.Tensor:
@@ -185,17 +192,21 @@ class Unet(torch.nn.Module):
         if self.ord_params is None:
             c = self._conv(in_c, out_c, 1, bias=bias)
             fc = nn.Sequential(c, get_act(out_act)) if out_act != 'linear' else c
+            return fc
         else:
             n_classes = np.arange(self.ord_params[0], self.ord_params[1]+1, self.ord_params[2]).size
             fc = self._conv(in_c, n_classes, 1, bias=bias)
-        return fc
+            fc_temp_c = self._conv(in_c, out_c, 1, bias=bias) if self.no_skip else \
+                        self._conv(in_c - self.n_input, 1, bias=bias)  # temp should not be a residual layer
+            fc_temp = nn.Sequential(fc_temp_c, nn.Softplus())
+            return nn.ModuleList([fc, fc_temp])
 
     def predict(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
         if self.ord_params is None:
             return self.forward(x)
         else:
-            out = self.forward(x)
-            y_hat = self.criterion.predict(out, return_var)
+            y_hat = self.forward(x, return_var)
+            if not return_var: y_hat = self.criterion.predict(y_hat)
             return y_hat
 
 
@@ -217,11 +228,10 @@ class _OrdLoss(nn.Module):
     def _digitize(self, x:torch.Tensor) -> torch.Tensor:
         return torch.from_numpy(np.digitize(x.cpu().detach().numpy(), self.range)).squeeze().to(self.device)
 
-    def predict(self, yd_hat:torch.Tensor, return_var:bool=False) -> torch.Tensor:
+    def predict(self, yd_hat:torch.Tensor) -> torch.Tensor:
         p = F.softmax(yd_hat, dim=1)
         intensity_bins = torch.ones_like(yd_hat) * self.trange
         y_hat = torch.sum(p * intensity_bins, dim=1, keepdim=True)
-        if return_var: y_hat = torch.sum((intensity_bins - y_hat)**2 * p, dim=1, keepdim=True)
         return y_hat
 
     def forward(self, y:torch.Tensor, yd_hat:torch.Tensor):

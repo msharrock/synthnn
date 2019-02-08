@@ -151,7 +151,7 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_ord_3d_cli(self):
         args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
-                                  f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0').split()
+                                  f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0 -ns').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)
@@ -161,7 +161,7 @@ class TestCLI(unittest.TestCase):
     def test_unet_ord_2d_varmap_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
         args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 --tiff '
-                             f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0').split()
+                             f'-ocf {self.jsonfn} -ord 1 10 1 -vs 0 -ns').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn, varmap=True)

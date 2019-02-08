@@ -183,8 +183,8 @@ def main(args=None):
         if args.net3d and args.tiff: logger.warning('Cannot train a 3D network with TIFF images, creating a 2D network.')
         n_input, n_output = len(args.source_dir), len(args.target_dir)
 
-        if args.ord_params is not None and (n_input > 1 or n_output > 1):
-            raise SynthNNError('Ordinal regression does not support multiple inputs/outputs.')
+        if args.ord_params is not None and n_output > 1:
+            raise SynthNNError('Ordinal regression does not support multiple outputs.')
 
         # get the desired neural network architecture
         if args.nn_arch == 'nconv':
