@@ -120,8 +120,9 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "valid_target_dir": args.valid_target_dir
         },
         "Prediction Options": {
+            "calc_var": False,
             "monte_carlo": None,
-            "varmap": False,
+            "temperature_map": False
         },
         "VAE Options": {
             "img_dim": args.img_dim,

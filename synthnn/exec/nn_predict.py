@@ -29,21 +29,21 @@ with warnings.catch_warnings():
 
 ######## Helper functions ########
 
-def fwd(mdl, img, varmap): return mdl.predict(img, varmap).cpu().detach().numpy()
+def fwd(mdl, img, temperature_map): return mdl.predict(img, temperature_map).cpu().detach().numpy()
 
 
-def batch2d(model, img, out_img, axis, device, bs, i, nsyn, varmap):
+def batch2d(model, img, out_img, axis, device, bs, i, nsyn, temperature_map):
     s = np.transpose(img[:,i:i+bs,:,:],[1,0,2,3]) if axis == 0 else \
         np.transpose(img[:,:,i:i+bs,:],[2,0,1,3]) if axis == 1 else \
         np.transpose(img[:,:,:,i:i+bs],[3,0,1,2])
     img_b = torch.from_numpy(s).to(device)
-    for _ in range(nsyn):
+    for j in range(nsyn):
         if axis == 0:
-            out_img[:,i:i+bs,:,:] = out_img[:,i:i+bs,:,:] + np.transpose(fwd(model, img_b, varmap), [1,0,2,3]) / nsyn
+            out_img[j,:,i:i+bs,:,:] = np.transpose(fwd(model, img_b, temperature_map), [1,0,2,3])
         elif axis == 1:
-            out_img[:,:,i:i+bs,:] = out_img[:,:,i:i+bs,:] + np.transpose(fwd(model, img_b, varmap), [1,2,0,3]) / nsyn
+            out_img[j,:,:,i:i+bs,:] = np.transpose(fwd(model, img_b, temperature_map), [1,2,0,3])
         else:
-            out_img[:,:,:,i:i+bs] = out_img[:,:,:,i:i+bs] + np.transpose(fwd(model, img_b, varmap), [1,2,3,0]) / nsyn
+            out_img[j,:,:,:,i:i+bs] = np.transpose(fwd(model, img_b, temperature_map), [1,2,3,0])
 
 
 def save_imgs(out_img_nib, output_dir, k, logger):
@@ -77,9 +77,9 @@ def main(args=None):
         # determine if we enable dropout in prediction
         nsyn = args.monte_carlo or 1
 
-        # only create varmap if ord params used
-        if args.ord_params is None and args.varmap:
-            raise SynthNNError('varmap is only a valid option when using ordinal regression')
+        # only create temperature map if ord params used
+        if args.ord_params is None and args.temperature_map:
+            raise SynthNNError('temperature_map is only a valid option when using ordinal regression')
 
         # load the trained model
         if args.nn_arch.lower() == 'nconv':
@@ -123,6 +123,9 @@ def main(args=None):
                                'of images in each directory (e.g., so that img_t1_1 aligns with img_t2_1 etc. for multimodal synth)')
         predict_fns = zip(*[glob_nii(pd) for pd in predict_dir])
 
+        if args.net3d and psz > 0 and args.calc_var:
+            raise SynthNNError('Patch-based 3D variance calculation not currently supported.')
+
         if args.net3d:  # 3D Synthesis Loop
             for k, fn in enumerate(predict_fns):
                 _, base, _ = split_filename(fn[0])
@@ -158,15 +161,18 @@ def main(args=None):
                             batch = torch.from_numpy(batch).to(device)
                             predicted = np.zeros(batch.shape)
                             for _ in range(nsyn):
-                                predicted += fwd(model, batch, args.varmap)
+                                predicted += fwd(model, batch, args.temperature_map)
                             for ii, (bx, by, bz) in enumerate(batch_idxs):
                                 out_img[:, bx, by, bz] = out_img[:, bx, by, bz] + predicted[ii, ...]
                             j = 0
                     count_mtx[count_mtx == 0] = 1  # avoid division by zero
                     out_img_nib = [nib.Nifti1Image(out_img[i]/count_mtx, img_nib.affine, img_nib.header) for i in range(args.n_output)]
                 else:  # whole-image-based 3D synthesis
+                    out_img = np.zeros((nsyn,) + img.shape)
                     test_img = torch.from_numpy(img).to(device)[None, ...]  # add empty batch dimension
-                    out_img = fwd(model, test_img, args.varmap)[0]  # remove empty batch dimension
+                    for j in range(nsyn):
+                        out_img[j] = fwd(model, test_img, args.temperature_map)[0]  # remove empty batch dimension
+                    out_img = np.mean(out_img, axis=0) if not args.calc_var else np.var(out_img, axis=0)
                     out_img_nib = [nib.Nifti1Image(out_img[i], img_nib.affine, img_nib.header) for i in range(args.n_output)]
                 save_imgs(out_img_nib, output_dir, k, logger)
 
@@ -177,7 +183,7 @@ def main(args=None):
                 img_nib = nib.load(fn[0])
                 img = np.stack([nib.load(f).get_data().view(np.float32) for f in fn])  # set to float32 to save memory
                 if img.ndim == 3: img = img[np.newaxis, ...]
-                out_img = np.zeros((args.n_output,) + img.shape[1:])
+                out_img = np.zeros((nsyn, args.n_output) + img.shape[1:])
                 num_batches = floor(img.shape[axis+1] / bs)  # add one to axis to ignore channel dim
                 if img.shape[axis+1] / bs != num_batches:
                     lbi = int(num_batches * bs)  # last batch index
@@ -187,10 +193,11 @@ def main(args=None):
                     lbi = None
                 for i in range(num_batches if lbi is None else num_batches-1):
                     logger.info(f'Starting batch ({i+1}/{num_batches})')
-                    batch2d(model, img, out_img, axis, device, bs, i*bs, nsyn, args.varmap)
+                    batch2d(model, img, out_img, axis, device, bs, i*bs, nsyn, args.temperature_map)
                 if lbi is not None:
                     logger.info(f'Starting batch ({num_batches}/{num_batches})')
-                    batch2d(model, img, out_img, axis, device, lbs, lbi, nsyn, args.varmap)
+                    batch2d(model, img, out_img, axis, device, lbs, lbi, nsyn, args.temperature_map)
+                out_img = np.mean(out_img, axis=0) if not args.calc_var else np.var(out_img, axis=0)
                 out_img_nib = [nib.Nifti1Image(out_img[i], img_nib.affine, img_nib.header) for i in range(args.n_output)]
                 save_imgs(out_img_nib, output_dir, k, logger)
 
