@@ -71,6 +71,10 @@ def main(args=None):
     setup_log(args.verbosity)
     logger = logging.getLogger(__name__)
     try:
+        # set random seeds for reproducibility
+        torch.manual_seed(args.seed)
+        np.random.seed(args.seed)
+
         # define device to put tensors on
         device, use_cuda, n_gpus = get_device(args, logger)
 
