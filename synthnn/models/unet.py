@@ -55,7 +55,7 @@ class Unet(torch.nn.Module):
         n_input (int): number of input channels to network [Default=1]
         n_output (int): number of output channels for network [Default=1]
         no_skip (bool): use no skip connections [Default=False]
-        ord_params (Tuple[int,int,int,torch.device]): parameters for ordinal regression (start,end,step) [Default=None]
+        ord_params (Tuple[int,int,int,torch.device]): parameters for ordinal regression (start,end,n_bins) [Default=None]
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -194,7 +194,7 @@ class Unet(torch.nn.Module):
             fc = nn.Sequential(c, get_act(out_act)) if out_act != 'linear' else c
             return fc
         else:
-            n_classes = np.arange(self.ord_params[0], self.ord_params[1]+1, self.ord_params[2]).size
+            n_classes = self.ord_params[2]
             fc = self._conv(in_c, n_classes, 1, bias=bias)
             fc_temp_c = self._conv(in_c, out_c, 1, bias=bias) if self.no_skip else \
                         self._conv(in_c - self.n_input, 1, bias=bias)  # temp should not be a residual layer
@@ -213,24 +213,24 @@ class Unet(torch.nn.Module):
 class _OrdLoss(nn.Module):
     def __init__(self, params:Tuple[int,int,int,torch.device], is_3d:bool=False):
         super(_OrdLoss, self).__init__()
-        *rng, self.device = params
-        self.range = np.arange(*rng)
-        self.trange = self._trange(*rng, is_3d).to(self.device)
+        start, stop, n_bins, self.device = params
+        self.bins = np.linspace(start, stop, n_bins-1, endpoint=False)
+        self.tbins = self._linspace(start, stop, n_bins, is_3d).to(self.device)
         self.mae = nn.L1Loss()
         self.ce = nn.CrossEntropyLoss()
 
     @staticmethod
-    def _trange(start:int, stop:int, step:int, is_3d:bool) -> torch.Tensor:
-        rng = np.arange(start, stop+1, step, dtype=np.float32)
+    def _linspace(start:int, stop:int, n_bins:int, is_3d:bool) -> torch.Tensor:
+        rng = np.linspace(start, stop, n_bins, dtype=np.float32)
         trng = torch.from_numpy(rng[:,None,None])
         return trng if not is_3d else trng[...,None]
 
     def _digitize(self, x:torch.Tensor) -> torch.Tensor:
-        return torch.from_numpy(np.digitize(x.cpu().detach().numpy(), self.range)).squeeze().to(self.device)
+        return torch.from_numpy(np.digitize(x.cpu().detach().numpy(), self.bins)).squeeze().to(self.device)
 
     def predict(self, yd_hat:torch.Tensor) -> torch.Tensor:
         p = F.softmax(yd_hat, dim=1)
-        intensity_bins = torch.ones_like(yd_hat) * self.trange
+        intensity_bins = torch.ones_like(yd_hat) * self.tbins
         y_hat = torch.sum(p * intensity_bins, dim=1, keepdim=True)
         return y_hat
 
