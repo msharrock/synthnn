@@ -103,6 +103,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "net3d": use_3d,
             "nn_arch": args.nn_arch,
             "no_skip": args.no_skip,
+            "noise_lvl": args.noise_lvl,
             "normalization": args.normalization,
             "ord_params": args.ord_params,
             "out_activation": args.out_activation,

@@ -120,6 +120,7 @@ def arg_parser():
     nn_options.add_argument('-na', '--nn-arch', type=str, default='unet', choices=('unet', 'nconv', 'vae'),
                             help='specify neural network architecture to use')
     nn_options.add_argument('-ns', '--no-skip', action='store_true', default=False, help='do not use skip connections in unet [Default=False]')
+    nn_options.add_argument('-nz', '--noise-lvl', type=float, default=0, help='add this level of noise to model parameters [Default=0]')
     nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'none'),
                             help='type of normalization layer to use in network [Default=instance]')
     nn_options.add_argument('-ord', '--ord-params', type=int, nargs=3, default=None,
@@ -200,7 +201,8 @@ def main(args=None):
                          activation=args.activation, output_activation=args.out_activation, interp_mode=args.interp_mode,
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
                          n_input=n_input, n_output=n_output, no_skip=args.no_skip,
-                         ord_params=args.ord_params + [device] if args.ord_params is not None else None)
+                         ord_params=args.ord_params + [device] if args.ord_params is not None else None,
+                         noise_lvl=args.noise_lvl)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,

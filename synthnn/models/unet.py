@@ -56,6 +56,7 @@ class Unet(torch.nn.Module):
         n_output (int): number of output channels for network [Default=1]
         no_skip (bool): use no skip connections [Default=False]
         ord_params (Tuple[int,int,int,torch.device]): parameters for ordinal regression (start,end,n_bins) [Default=None]
+        noise_lvl (float): add gaussian noise to weights with this std [Default=0]
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -69,7 +70,7 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int,torch.device]=None):
+                 ord_params:Tuple[int,int,int,torch.device]=None, noise_lvl:float=0):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -88,6 +89,7 @@ class Unet(torch.nn.Module):
         self.n_output = n_output
         self.no_skip = no_skip
         self.ord_params = ord_params
+        self.noise_lvl = noise_lvl
         self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, is_3d)
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
@@ -105,6 +107,7 @@ class Unet(torch.nn.Module):
                                           for n in reversed(range(nl+1))])
 
     def forward(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
+        if self.noise_lvl > 0: self._add_noise()
         x = self._fwd_skip(x, return_var) if not self.no_skip else self._fwd_no_skip(x, return_var)
         return x
 
@@ -158,6 +161,11 @@ class Unet(torch.nn.Module):
         x = F.dropout3d(x, self.dropout_p, training=self.enable_dropout) if self.is_3d else \
             F.dropout2d(x, self.dropout_p, training=self.enable_dropout)
         return x
+
+    def _add_noise(self):
+        with torch.no_grad():
+            for param in self.parameters():
+                param.add_(torch.randn(param.size()) * self.noise_lvl)
 
     def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, mode:str=None, bias:bool=False) -> nn.Sequential:
         ksz = self.kernel_sz if kernel_sz is None else kernel_sz
