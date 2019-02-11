@@ -105,7 +105,7 @@ class TestCLI(unittest.TestCase):
     def test_nconv_data_aug_3d_cli(self):
         args = self.train_args + (f'-o {self.out_dir}/nconv_nopatch.mdl -na nconv -ne 1 -nl 2 -ps 0 -bs 2 '
                                   f'--plot-loss {self.out_dir}/loss.png -ocf {self.jsonfn} --net3d '
-                                  f'-vsd {self.train_dir} -vtd {self.train_dir} -p 0 0 1 1 0 '
+                                  f'-vsd {self.train_dir} -vtd {self.train_dir} -p 0 0 1 1 1 '
                                   f'-g 0.01 -gn 0 -std 1 -tx -ty').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
