@@ -240,10 +240,10 @@ def main(args=None):
         # add data augmentation if desired
         if args.prob is not None:  # currently only support transforms on tiff images
             logger.debug('Adding data augmentation transforms')
-            if args.net3d and (args.prob[0] > 0 or args.prob[1] > 0):
-                logger.warning('Cannot do affine or flipping data augmentation with 3d networks')
-                args.prob[:2] = 0
-                args.rotate, args.translate, args.scale, args.hflip, args.vflip = 0, None, None, False, False
+            if args.net3d and (args.prob[0] > 0 or args.prob[1] > 0 or args.prob[3] > 0):
+                logger.warning('Cannot do affine or flipping or block data augmentation with 3d networks')
+                args.prob[0], args.prob[1], args.prob[3] = 0, 0, 0
+                args.rotate, args.translate, args.scale, args.hflip, args.vflip, args.block = 0, None, None, False, False, None
             tfm.extend(tfms.get_transforms(args.prob, args.tfm_x, args.tfm_y, args.rotate, args.translate, args.scale,
                                            args.vflip, args.hflip, args.gamma, args.gain, args.noise_std, args.block))
         else:
