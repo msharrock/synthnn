@@ -201,8 +201,7 @@ def main(args=None):
                          activation=args.activation, output_activation=args.out_activation, interp_mode=args.interp_mode,
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
                          n_input=n_input, n_output=n_output, no_skip=args.no_skip,
-                         ord_params=args.ord_params + [device] if args.ord_params is not None else None,
-                         noise_lvl=args.noise_lvl)
+                         ord_params=args.ord_params, noise_lvl=args.noise_lvl, device=device)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,

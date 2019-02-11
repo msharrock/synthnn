@@ -55,8 +55,10 @@ class Unet(torch.nn.Module):
         n_input (int): number of input channels to network [Default=1]
         n_output (int): number of output channels for network [Default=1]
         no_skip (bool): use no skip connections [Default=False]
-        ord_params (Tuple[int,int,int,torch.device]): parameters for ordinal regression (start,end,n_bins) [Default=None]
+        ord_params (Tuple[int,int,int]): parameters for ordinal regression (start,end,n_bins) [Default=None]
         noise_lvl (float): add gaussian noise to weights with this std [Default=0]
+        device (torch.device): device to place new parameters/tensors on (only necessary for ord_params or noise_lvl)
+            [Default=None]
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -70,7 +72,7 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int,torch.device]=None, noise_lvl:float=0):
+                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -90,7 +92,8 @@ class Unet(torch.nn.Module):
         self.no_skip = no_skip
         self.ord_params = ord_params
         self.noise_lvl = noise_lvl
-        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, is_3d)
+        self.device = device
+        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, device, is_3d)
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
         # define the model layers here to make them visible for autograd
@@ -107,7 +110,6 @@ class Unet(torch.nn.Module):
                                           for n in reversed(range(nl+1))])
 
     def forward(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
-        if self.noise_lvl > 0: self._add_noise()
         x = self._fwd_skip(x, return_var) if not self.no_skip else self._fwd_no_skip(x, return_var)
         return x
 
@@ -117,11 +119,11 @@ class Unet(torch.nn.Module):
         x = self._down(dout[-1])
         for dl in self.down_layers:
             dout.append(dl(x))
-            x = self._dropout(self._down(dout[-1]))
-        x = self.upsampconvs[0](self._dropout(self._up(self.bridge(x), dout[-1].shape[2:])))
+            x = self._add_noise(self._down(dout[-1]))
+        x = self.upsampconvs[0](self._add_noise(self._up(self.bridge(x), dout[-1].shape[2:])))
         for i, (ul, d) in enumerate(zip(self.up_layers, reversed(dout)), 1):
             x = ul(torch.cat((x, d), dim=1))
-            x = self._dropout(self._up(x, dout[-i-1].shape[2:]))
+            x = self._add_noise(self._up(x, dout[-i-1].shape[2:]))
             x = self.upsampconvs[i](x)
         if not return_var:
             x = self.finish(torch.cat((x, dout[0]), dim=1)) if not isinstance(self.finish,nn.ModuleList) else \
@@ -137,11 +139,11 @@ class Unet(torch.nn.Module):
         for dl in self.down_layers:
             x = dl(x)
             sz.append(x.shape)
-            x = self._dropout(self._down(x))
-        x = self.upsampconvs[0](self._dropout(self._up(self.bridge(x), sz[-1][2:])))
+            x = self._add_noise(self._down(x))
+        x = self.upsampconvs[0](self._add_noise(self._up(self.bridge(x), sz[-1][2:])))
         for i, (ul, s) in enumerate(zip(self.up_layers, reversed(sz)), 1):
             x = ul(x)
-            x = self._dropout(self._up(x, sz[-i-1][2:]))
+            x = self._add_noise(self._up(x, sz[-i-1][2:]))
             x = self.upsampconvs[i](x)
         if not return_var:
             x = self.finish(x) if not isinstance(self.finish,nn.ModuleList) else self.finish[0](x) / self.finish[1](x)
@@ -157,15 +159,13 @@ class Unet(torch.nn.Module):
         y = F.interpolate(x, size=sz, mode=self.interp_mode)
         return y
 
-    def _dropout(self, x:torch.Tensor) -> torch.Tensor:
-        x = F.dropout3d(x, self.dropout_p, training=self.enable_dropout) if self.is_3d else \
-            F.dropout2d(x, self.dropout_p, training=self.enable_dropout)
+    def _add_noise(self, x:torch.Tensor) -> torch.Tensor:
+        if self.dropout_p > 0:
+            x = F.dropout3d(x, self.dropout_p, training=self.enable_dropout) if self.is_3d else \
+                F.dropout2d(x, self.dropout_p, training=self.enable_dropout)
+        if self.noise_lvl > 0:
+            x.add_(torch.randn(x.size()).to(self.device) * self.noise_lvl)
         return x
-
-    def _add_noise(self):
-        with torch.no_grad():
-            for param in self.parameters():
-                param.add_(torch.randn(param.size()) * self.noise_lvl)
 
     def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, mode:str=None, bias:bool=False) -> nn.Sequential:
         ksz = self.kernel_sz if kernel_sz is None else kernel_sz
@@ -219,9 +219,10 @@ class Unet(torch.nn.Module):
 
 
 class _OrdLoss(nn.Module):
-    def __init__(self, params:Tuple[int,int,int,torch.device], is_3d:bool=False):
+    def __init__(self, params:Tuple[int,int,int], device:torch.device, is_3d:bool=False):
         super(_OrdLoss, self).__init__()
-        start, stop, n_bins, self.device = params
+        start, stop, n_bins = params
+        self.device = device
         self.bins = np.linspace(start, stop, n_bins-1, endpoint=False)
         self.tbins = self._linspace(start, stop, n_bins, is_3d).to(self.device)
         self.mae = nn.L1Loss()
