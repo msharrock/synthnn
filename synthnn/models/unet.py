@@ -164,7 +164,7 @@ class Unet(torch.nn.Module):
             x = F.dropout3d(x, self.dropout_p, training=self.enable_dropout) if self.is_3d else \
                 F.dropout2d(x, self.dropout_p, training=self.enable_dropout)
         if self.noise_lvl > 0:
-            x.add_(torch.randn_like(x) * self.noise_lvl)
+            x.add_(torch.randn_like(x.detach()) * self.noise_lvl)
         return x
 
     def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, mode:str=None, bias:bool=False) -> nn.Sequential:
