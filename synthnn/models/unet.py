@@ -57,7 +57,7 @@ class Unet(torch.nn.Module):
         no_skip (bool): use no skip connections [Default=False]
         ord_params (Tuple[int,int,int]): parameters for ordinal regression (start,end,n_bins) [Default=None]
         noise_lvl (float): add gaussian noise to weights with this std [Default=0]
-        device (torch.device): device to place new parameters/tensors on (only necessary for ord_params or noise_lvl)
+        device (torch.device): device to place new parameters/tensors on (only necessary when doing ordinal regression)
             [Default=None]
 
     References:
@@ -164,7 +164,7 @@ class Unet(torch.nn.Module):
             x = F.dropout3d(x, self.dropout_p, training=self.enable_dropout) if self.is_3d else \
                 F.dropout2d(x, self.dropout_p, training=self.enable_dropout)
         if self.noise_lvl > 0:
-            x.add_(torch.randn(x.size()).to(self.device) * self.noise_lvl)
+            x.add_(torch.randn_like(x) * self.noise_lvl)
         return x
 
     def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, mode:str=None, bias:bool=False) -> nn.Sequential:
