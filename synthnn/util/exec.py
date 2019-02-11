@@ -142,6 +142,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "vflip": args.vflip,
             "gamma": args.gamma,
             "gain": args.gain,
+            "block": args.block,
             "noise_std": args.noise_std,
             "tfm_x": args.tfm_x,
             "tfm_y": args.tfm_y
