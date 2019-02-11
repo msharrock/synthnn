@@ -133,7 +133,7 @@ def arg_parser():
     vae_options.add_argument('-ls', '--latent-size', type=int, default=2048, help='if using VAE, this controls latent dimension size [Default=2048]')
 
     aug_options = parser.add_argument_group('Data Augmentation Options')
-    aug_options.add_argument('-p', '--prob', type=float, nargs=4, default=None, help='probability of (Affine, Flip, Gamma, Noise) [Default=None]')
+    aug_options.add_argument('-p', '--prob', type=float, nargs=5, default=None, help='probability of (Affine, Flip, Gamma, Block, Noise) [Default=None]')
     aug_options.add_argument('-r', '--rotate', type=float, default=0, help='max rotation angle [Default=0]')
     aug_options.add_argument('-ts', '--translate', type=float, default=None, help='max fractional translation [Default=None]')
     aug_options.add_argument('-sc', '--scale', type=float, default=None, help='max scale (1-scale,1+scale) [Default=None]')
@@ -141,6 +141,7 @@ def arg_parser():
     aug_options.add_argument('-vf', '--vflip', action='store_true', default=False, help='vertical flip [Default=False]')
     aug_options.add_argument('-g', '--gamma', type=float, default=None, help='gamma (1-gamma,1+gamma) for (gain * x ** gamma) [Default=None]')
     aug_options.add_argument('-gn', '--gain', type=float, default=None, help='gain (1-gain,1+gain) for (gain * x ** gamma) [Default=None]')
+    aug_options.add_argument('-blk', '--block', type=int, nargs=2, default=None, help='insert random blocks of this size range [Default=None]')
     aug_options.add_argument('-std', '--noise-std', type=float, default=0, help='noise standard deviation/power [Default=0]')
     aug_options.add_argument('-tx', '--tfm-x', action='store_true', default=True, help='apply transforms to x (change this with config file) [Default=True]')
     aug_options.add_argument('-ty', '--tfm-y', action='store_true', default=False, help='apply transforms to y [Default=False]')
@@ -244,7 +245,7 @@ def main(args=None):
                 args.prob[:2] = 0
                 args.rotate, args.translate, args.scale, args.hflip, args.vflip = 0, None, None, False, False
             tfm.extend(tfms.get_transforms(args.prob, args.tfm_x, args.tfm_y, args.rotate, args.translate, args.scale,
-                                           args.vflip, args.hflip, args.gamma, args.gain, args.noise_std))
+                                           args.vflip, args.hflip, args.gamma, args.gain, args.noise_std, args.block))
         else:
             logger.debug('No data augmentation will be used (except random cropping if patch_size > 0)')
             tfm.append(tfms.ToTensor())
