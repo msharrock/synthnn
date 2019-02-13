@@ -105,8 +105,8 @@ def main(args=None):
                          n_input=args.n_input, n_output=args.n_output, latent_size=args.latent_size)
         else:
             raise SynthNNError(f'Invalid NN type: {args.nn_arch}. {{nconv, unet}} are the only supported options.')
-        state_dict = torch.load(args.trained_model, map_location=device)
-        model.load_state_dict(state_dict)
+        state_dict = torch.load(args.trained_model)
+        model.load_state_dict(state_dict['state_dict'])
         model.eval()
         logger.debug(model)
 

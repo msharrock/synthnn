@@ -167,21 +167,25 @@ class Unet(torch.nn.Module):
             x.add_(torch.randn_like(x.detach()) * self.noise_lvl)
         return x
 
-    def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, mode:str=None, bias:bool=False) -> nn.Sequential:
+    def _conv(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None, bias:bool=False) -> nn.Sequential:
         ksz = self.kernel_sz if kernel_sz is None else kernel_sz
-        stride = 1 if mode is None else 2
         bias = False if self.norm != 'none' and not bias else True
-        c = nn.Sequential(nn.ReplicationPad3d(ksz // 2), nn.Conv3d(in_c, out_c, ksz, stride=stride, bias=bias)) if self.is_3d else \
-            nn.Sequential(nn.ReflectionPad2d(ksz // 2),  nn.Conv2d(in_c, out_c, ksz, stride=stride, bias=bias))
+        layers = [nn.Conv3d(in_c, out_c, ksz, bias=bias)] if self.is_3d else \
+                 [nn.Conv2d(in_c, out_c, ksz, bias=bias)]
+        if ksz > 1: layers = [nn.ReplicationPad3d(ksz // 2)] + layers if self.is_3d else \
+                             [nn.ReflectionPad2d(ksz // 2)] + layers
+        c = nn.Sequential(*layers) if len(layers) > 1 else layers[0]
         return c
 
     def _conv_act(self, in_c:int, out_c:int, kernel_sz:Optional[int]=None,
-                  act:Optional[str]=None, norm:Optional[str]=None, mode:str=None) -> nn.Sequential:
-        ksz = self.kernel_sz if kernel_sz is None else kernel_sz
+                  act:Optional[str]=None, norm:Optional[str]=None) -> nn.Sequential:
+        ksz = kernel_sz or self.kernel_sz
         activation = get_act(act) if act is not None else get_act('relu')
-        normalization = get_norm3d(norm, out_c) if norm is not None and self.is_3d else get_norm3d('instance', out_c) if self.is_3d else \
-                        get_norm2d(norm, out_c) if norm is not None and not self.is_3d else get_norm2d('instance', out_c)
-        layers = [self._conv(in_c, out_c, ksz, mode)]
+        normalization = get_norm3d(norm, out_c) if norm is not None and self.is_3d else \
+                        get_norm3d('instance', out_c) if self.is_3d else \
+                        get_norm2d(norm, out_c) if norm is not None and not self.is_3d else \
+                        get_norm2d('instance', out_c)
+        layers = [self._conv(in_c, out_c, ksz)]
         if normalization is not None: layers.append(normalization)
         layers.append(activation)
         ca = nn.Sequential(*layers)
@@ -205,7 +209,7 @@ class Unet(torch.nn.Module):
             n_classes = self.ord_params[2]
             fc = self._conv(in_c, n_classes, 1, bias=bias)
             fc_temp_c = self._conv(in_c, out_c, 1, bias=bias) if self.no_skip else \
-                        self._conv(in_c - self.n_input, 1, bias=bias)  # temp should not be a residual layer
+                        self._conv(in_c - self.n_input, 1, 1, bias=bias)  # temp should not be a residual layer
             fc_temp = nn.Sequential(fc_temp_c, nn.Softplus())
             return nn.ModuleList([fc, fc_temp])
 

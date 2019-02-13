@@ -12,6 +12,7 @@ Created on: Aug 28, 2018
 """
 
 import argparse
+from collections import OrderedDict
 import logging
 import os
 import sys
@@ -30,7 +31,7 @@ with warnings.catch_warnings():
     from torch.utils.data.sampler import SubsetRandomSampler
     from niftidataset import MultimodalNiftiDataset, MultimodalTiffDataset
     import niftidataset.transforms as tfms
-    from synthnn import SynthNNError, init_weights, BurnCosineLR
+    from synthnn import SynthNNError, init_weights, BurnCosineLR, split_filename
     from synthnn.util.exec import get_args, get_device, setup_log, write_out_config
 
 
@@ -45,13 +46,15 @@ def arg_parser():
     required.add_argument('-t', '--target-dir', type=str, required=True, nargs='+',
                           help='path to directory with target images (multiple paths can be provided for multi-modal synthesis)')
     required.add_argument('-o', '--trained-model', type=str, default=None,
-                          help='path to output the trained model')
+                          help='path to output the trained model or (if model exists) continue training this model')
 
     options = parser.add_argument_group('Options')
     options.add_argument('-bs', '--batch-size', type=int, default=5,
                          help='batch size (num of images to process at once) [Default=5]')
     options.add_argument('-c', '--clip', type=float, default=None,
                          help='gradient clipping threshold [Default=None]')
+    options.add_argument('-chk', '--checkpoint', type=int, default=None,
+                         help='save the model every `checkpoint` epochs [Default=None]')
     options.add_argument('--disable-cuda', action='store_true', default=False,
                          help='Disable CUDA regardless of availability')
     options.add_argument('-mp', '--fp16', action='store_true', default=False,
@@ -158,6 +161,37 @@ def criterion(out, tgt, model):
     return loss
 
 
+def load_model(model, fn, device):
+    checkpoint = torch.load(fn)
+    start_epoch = checkpoint['epoch']
+    model.load_state_dict(checkpoint['state_dict'])
+    model = model.to(device)
+    return model, start_epoch
+
+
+def load_opt(optimizer, fn, device):
+    checkpoint = torch.load(fn)
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    for state in optimizer.state.values():  # put optimizer values on desired device
+        for k, v in state.items():
+            if torch.is_tensor(v):
+                state[k] = v.to(device)
+    return optimizer
+
+
+def save_model(model, optimizer, t, fn):
+    state_dict = model.state_dict()
+    if hasattr(model, 'module'):  # used for when dataparallel applied
+        # create new OrderedDict that does not contain `module.`
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            name = k[7:]  # remove `module.`
+            new_state_dict[name] = v
+        state_dict = new_state_dict
+    state = {'epoch': t, 'state_dict': state_dict, 'optimizer': optimizer.state_dict()}
+    torch.save(state, fn)
+
+
 ######### Main routine ###########
 
 def main(args=None):
@@ -211,6 +245,12 @@ def main(args=None):
         model.train(True)
         logger.debug(model)
 
+        # load a trained model if desired
+        if os.path.isfile(args.trained_model):
+            model, start_epoch = load_model(model, args.trained_model, device)
+            model.train()
+            logger.info(f'Loaded checkpoint: {args.trained_model} (epoch {start_epoch})')
+
         # put the model on the GPU if available and desired
         if use_cuda: model.cuda(device=device)
         use_multi = args.multi_gpu and n_gpus > 1 and use_cuda
@@ -219,6 +259,12 @@ def main(args=None):
             n_gpus = len(args.gpu_selector) if args.gpu_selector is not None else n_gpus
             logger.debug(f'Enabling use of {n_gpus} gpus')
             model = torch.nn.DataParallel(model, device_ids=args.gpu_selector)
+
+        # initialize/load optimizer state
+        logger.debug(f'LR: {args.learning_rate:.5f}')
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        if os.path.isfile(args.trained_model):
+            optimizer = load_opt(optimizer, args.trained_model, device)
 
         # initialize the weights with user-defined initialization routine
         logger.debug(f'Initializing weights with {args.init}')
@@ -239,7 +285,7 @@ def main(args=None):
             tfm = []
 
         # add data augmentation if desired
-        if args.prob is not None:  # currently only support transforms on tiff images
+        if args.prob is not None:
             logger.debug('Adding data augmentation transforms')
             if args.net3d and (args.prob[0] > 0 or args.prob[1] > 0 or args.prob[3] > 0):
                 logger.warning('Cannot do affine or flipping or block data augmentation with 3d networks')
@@ -277,15 +323,15 @@ def main(args=None):
             train_loader = DataLoader(dataset, sampler=train_sampler, batch_size=args.batch_size, num_workers=args.n_jobs, pin_memory=args.pin_memory)
             validation_loader = DataLoader(dataset, sampler=validation_sampler, batch_size=args.batch_size, num_workers=args.n_jobs, pin_memory=args.pin_memory)
 
-        # train the model
-        logger.info(f'LR: {args.learning_rate:.5f}')
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        # setup a learning rate scheduler if desired
         if args.lr_scheduler:
             logger.debug('Enabling burn-in cosine annealing LR scheduler')
             scheduler = BurnCosineLR(optimizer, args.n_epochs)
+
+        # training and validation loop
         use_valid = args.valid_split > 0 or (args.valid_source_dir is not None and args.valid_target_dir is not None)
         train_losses, validation_losses = [], []
-        for t in range(args.n_epochs):
+        for t in range(1, args.n_epochs+1):
             # training
             t_losses = []
             if use_valid: model.train(True)
@@ -305,6 +351,12 @@ def main(args=None):
             train_losses.append(t_losses)
             if args.lr_scheduler: scheduler.step()
 
+            if args.checkpoint is not None:
+                if t % args.checkpoint == 0:
+                    path, base, ext = split_filename(args.trained_model)
+                    fn = os.path.join(path, base + f'_chk_{t}' + ext)
+                    save_model(model, optimizer, t, fn)
+
             # validation
             v_losses = []
             if use_valid: model.train(False)
@@ -317,7 +369,7 @@ def main(args=None):
                 validation_losses.append(v_losses)
 
             if np.any(np.isnan(t_losses)): raise SynthNNError('NaN in training loss, cannot recover. Exiting.')
-            log = f'Epoch: {t+1} - Training Loss: {np.mean(t_losses):.2e}'
+            log = f'Epoch: {t} - Training Loss: {np.mean(t_losses):.2e}'
             if use_valid: log += f', Validation Loss: {np.mean(v_losses):.2e}'
             if args.lr_scheduler: log += f', LR: {scheduler.get_lr()[0]:.2e}'
             logger.info(log)
@@ -329,31 +381,20 @@ def main(args=None):
         # save the trained model
         use_config_file = not no_config_file or args.out_config_file is not None
         if use_config_file:
-            torch.save(model.state_dict(), args.trained_model)
+            save_model(model, optimizer, args.n_epochs, args.trained_model)
         else:
             # save the whole model (if changes occur to pytorch, then this model will probably not be loadable)
             logger.warning('Saving the entire model. Preferred to create a config file and only save model weights')
             torch.save(model, args.trained_model)
 
-        # strip multi-gpu specific attributes from saved model (so that it can be loaded easily)
-        if use_multi and use_config_file:
-            from collections import OrderedDict
-            state_dict = torch.load(args.trained_model, map_location='cpu')
-            # create new OrderedDict that does not contain `module.`
-            new_state_dict = OrderedDict()
-            for k, v in state_dict.items():
-                name = k[7:]  # remove `module.`
-                new_state_dict[name] = v
-            torch.save(new_state_dict, args.trained_model)
-
         # plot the loss vs epoch (if desired)
         if args.plot_loss is not None:
-            plot_error = True if args.n_epochs <= 50 else False
+            plot_error = True if args.n_epochs <= 30 else False
             from synthnn import plot_loss
             if matplotlib.get_backend() != 'agg':
                 import matplotlib.pyplot as plt
                 plt.switch_backend('agg')
-            ax = plot_loss(train_losses, ecolor='maroon', label='Train', plot_error=plot_error)
+            ax = plot_loss(train_losses, ecolor='darkorchid', label='Train', plot_error=plot_error)
             _ = plot_loss(validation_losses, filename=args.plot_loss, ecolor='firebrick', ax=ax, label='Validation', plot_error=plot_error)
 
         return 0
