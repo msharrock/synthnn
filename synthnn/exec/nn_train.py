@@ -171,13 +171,9 @@ def load_model(model, fn, device):
     return model, start_epoch
 
 
-def load_opt(optimizer, fn, device):
+def load_opt(optimizer, fn):
     checkpoint = torch.load(fn)
     optimizer.load_state_dict(checkpoint['optimizer'])
-    for state in optimizer.state.values():  # put optimizer values on desired device
-        for k, v in state.items():
-            if torch.is_tensor(v):
-                state[k] = v.to(device)
     return optimizer
 
 
@@ -266,7 +262,7 @@ def main(args=None):
         logger.debug(f'LR: {args.learning_rate:.5f}')
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
         if os.path.isfile(args.trained_model) and not args.no_load_opt:
-            optimizer = load_opt(optimizer, args.trained_model, device)
+            optimizer = load_opt(optimizer, args.trained_model)
 
         # initialize the weights with user-defined initialization routine
         logger.debug(f'Initializing weights with {args.init}')
