@@ -67,6 +67,8 @@ def arg_parser():
     options.add_argument('-mg', '--multi-gpu', action='store_true', default=False, help='use multiple gpus [Default=False]')
     options.add_argument('-n', '--n-jobs', type=int, default=0,
                             help='number of CPU processors to use (use 0 if CUDA enabled) [Default=0]')
+    options.add_argument('-nlo', '--no-load-opt', action='store_true', default=False,
+                         help='if loading a trained model, do not load the optimizer [Default=False]')
     options.add_argument('-ocf', '--out-config-file', type=str, default=None,
                          help='output a config file for the options used in this experiment '
                               '(saves them as a json file with the name as input in this argument)')
@@ -263,7 +265,7 @@ def main(args=None):
         # initialize/load optimizer state
         logger.debug(f'LR: {args.learning_rate:.5f}')
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-        if os.path.isfile(args.trained_model):
+        if os.path.isfile(args.trained_model) and not args.no_load_opt:
             optimizer = load_opt(optimizer, args.trained_model, device)
 
         # initialize the weights with user-defined initialization routine

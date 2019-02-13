@@ -116,6 +116,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "lr_scheduler": args.lr_scheduler,
             "n_epochs": args.n_epochs,
             "n_jobs": args.n_jobs,
+            "no_load_opt": args.no_load_opt,
             "plot_loss": args.plot_loss,
             "valid_source_dir": args.valid_source_dir,
             "valid_split": args.valid_split,
