@@ -109,6 +109,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "out_activation": args.out_activation,
         },
         "Training Options": {
+            "checkpoint": args.checkpoint,
             "clip": args.clip,
             "fp16": args.fp16,
             "learning_rate": args.learning_rate,
