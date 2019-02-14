@@ -55,7 +55,7 @@ class Unet(torch.nn.Module):
         n_input (int): number of input channels to network [Default=1]
         n_output (int): number of output channels for network [Default=1]
         no_skip (bool): use no skip connections [Default=False]
-        ord_params (Tuple[int,int,int,bool]): parameters for ordinal regression (start,end,n_bins,use skip in temp) [Default=None]
+        ord_params (Tuple[int,int,int]): parameters for ordinal regression (start,end,n_bins) [Default=None]
         noise_lvl (float): add gaussian noise to weights with this std [Default=0]
         device (torch.device): device to place new parameters/tensors on (only necessary when doing ordinal regression)
             [Default=None]
@@ -72,7 +72,7 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int,bool]=None, noise_lvl:float=0, device:torch.device=None):
+                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -93,7 +93,7 @@ class Unet(torch.nn.Module):
         self.ord_params = ord_params
         self.noise_lvl = noise_lvl
         self.device = device
-        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params[:3], device, is_3d)
+        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, device, is_3d)
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
         # define the model layers here to make them visible for autograd
@@ -125,12 +125,12 @@ class Unet(torch.nn.Module):
             x = ul(torch.cat((x, d), dim=1))
             x = self._add_noise(self._up(x, dout[-i-1].shape[2:]))
             x = self.upsampconvs[i](x)
+        x = torch.cat((x, dout[0]), dim=1)
         if not return_var:
-            x = self.finish(torch.cat((x, dout[0]), dim=1)) if not isinstance(self.finish,nn.ModuleList) else \
-                self.finish[0](torch.cat((x, dout[0]), dim=1)) / \
-                torch.clamp(self.finish[1](torch.cat((x, dout[0]), dim=1) if self.ord_params[3] else x), min=1e-6)
+            x = self.finish(x) if not isinstance(self.finish,nn.ModuleList) else \
+                self.finish[0](x) / torch.clamp(self.finish[1](x), min=1e-6)
         else:
-            x = self.finish[1](torch.cat((x, dout[0]), dim=1) if self.ord_params[3] else x)
+            x = self.finish[1](x)
         return x
 
     def _fwd_no_skip(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
@@ -210,9 +210,7 @@ class Unet(torch.nn.Module):
         else:
             n_classes = self.ord_params[2]
             fc = self._conv(in_c, n_classes, 1, bias=bias)
-            fc_temp_c = self._conv(in_c, 1, 1, bias=bias) if self.no_skip or self.ord_params[3] else \
-                        self._conv(in_c - self.n_input, 1, 1, bias=bias)
-            fc_temp = nn.Sequential(fc_temp_c, nn.Softplus())
+            fc_temp = nn.Sequential(self._conv(in_c, 1, 1, bias=bias), nn.Softplus())
             return nn.ModuleList([fc, fc_temp])
 
     def predict(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:

@@ -128,8 +128,8 @@ def arg_parser():
     nn_options.add_argument('-nz', '--noise-lvl', type=float, default=0, help='add this level of noise to model parameters [Default=0]')
     nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'none'),
                             help='type of normalization layer to use in network [Default=instance]')
-    nn_options.add_argument('-ord', '--ord-params', type=int, nargs=4, default=None,
-                            help='ordinal regression params (start, stop, n_bins, use skip in temp) [Default=None]')
+    nn_options.add_argument('-ord', '--ord-params', type=int, nargs=3, default=None,
+                            help='ordinal regression params (start, stop, n_bins) [Default=None]')
     nn_options.add_argument('-oac', '--out-activation', type=str, default='linear', choices=('relu', 'lrelu', 'linear'),
                             help='type of activation to use in network on output [Default=linear]')
 
