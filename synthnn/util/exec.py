@@ -79,6 +79,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
         "Options": {
             "batch_size": args.batch_size,
             "disable_cuda": args.disable_cuda,
+            "ext": args.ext,
             "gpu_selector": args.gpu_selector,
             "multi_gpu": args.multi_gpu,
             "out_config_file": args.out_config_file,
@@ -86,7 +87,6 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "pin_memory": args.pin_memory,
             "sample_axis": args.sample_axis,
             "seed": args.seed,
-            "tiff": args.tiff,
             "verbosity": args.verbosity
         },
         "Neural Network Options": {

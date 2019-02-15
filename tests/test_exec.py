@@ -106,7 +106,7 @@ class TestCLI(unittest.TestCase):
     def test_nconv_data_aug_2d_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
         args = train_args + (f'-o {self.out_dir}/nconv_nopatch.mdl -na nconv -ne 1 -nl 2 -ps 0 -bs 2 '
-                             f'--plot-loss {self.out_dir}/loss.png -ocf {self.jsonfn} --tiff '
+                             f'--plot-loss {self.out_dir}/loss.png -ocf {self.jsonfn} -e tif '
                              f'-p 1 1 1 1 1 -r 10 -ts 0.5 -sc 0.1 '
                              f'-hf -vf -g 0.1 -gn 0.2 -std 1 -tx -ty -blk 5 6').split()
         retval = nn_train(args)
@@ -146,7 +146,7 @@ class TestCLI(unittest.TestCase):
 
     def test_nconv_2d_var_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 --tiff '
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 -e tif '
                              f'-ocf {self.jsonfn}').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -183,7 +183,7 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_ord_2d_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 --tiff '
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
                              f'-ocf {self.jsonfn} -ord 1 10 10 -vs 0').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -202,7 +202,7 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_ord_2d_temperature_map_calc_var_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 --tiff '
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
                              f'-ocf {self.jsonfn} -ord 1 10 4 -vs 0 -ns').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -212,7 +212,7 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_ord_2d_temperature_map_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 --tiff '
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
                              f'-ocf {self.jsonfn} -ord 1 10 3 -vs 0 -ns').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -231,7 +231,7 @@ class TestCLI(unittest.TestCase):
 
     def test_vae_2d_3l_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 3 -cbp 2 -bs 4 --tiff '
+        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 3 -cbp 2 -bs 4 -e tif '
                              f'--img-dim 256 256 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -239,7 +239,7 @@ class TestCLI(unittest.TestCase):
 
     def test_vae_2d_5l_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 5 -cbp 1 -bs 4 --tiff '
+        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 5 -cbp 1 -bs 4 -e tif '
                              f'--img-dim 256 256 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -265,7 +265,7 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_multimodal_cli(self):
         train_args = f'-s {self.train_dir}/1/ {self.train_dir}/1/ -t {self.train_dir}/2/ {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -ps 16 -bs 2 --tiff '
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -ps 16 -bs 2 -e tif '
                              f'-ocf {self.jsonfn}').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -286,7 +286,7 @@ class TestCLI(unittest.TestCase):
     def test_nconv_multimodal_tiff_cli(self):
         train_args = f'-s {self.train_dir}/1/ {self.train_dir}/1/ -t {self.train_dir}/2/ {self.train_dir}/2/'.split()
         args = train_args + (f'-o {self.out_dir}/nconv_patch.mdl -na nconv -ne 1 -nl 1 -ps 16 '
-                             f'-ocf {self.jsonfn} -bs 2 --tiff').split()
+                             f'-ocf {self.jsonfn} -bs 2 -e tif').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn, multi=2)

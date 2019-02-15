@@ -29,7 +29,7 @@ with warnings.catch_warnings():
     from torch.utils.data import DataLoader
     from torchvision.transforms import Compose
     from torch.utils.data.sampler import SubsetRandomSampler
-    from niftidataset import MultimodalNiftiDataset, MultimodalTiffDataset
+    from niftidataset import MultimodalNiftiDataset, MultimodalImageDataset
     import niftidataset.transforms as tfms
     from synthnn import SynthNNError, init_weights, BurnCosineLR, split_filename
     from synthnn.util.exec import get_args, get_device, setup_log, write_out_config
@@ -57,6 +57,7 @@ def arg_parser():
                          help='save the model every `checkpoint` epochs [Default=None]')
     options.add_argument('--disable-cuda', action='store_true', default=False,
                          help='Disable CUDA regardless of availability')
+    options.add_argument('-e', '--ext', type=str, default=None, help='extension for 2d image [Default=None]')
     options.add_argument('-mp', '--fp16', action='store_true', default=False,
                          help='enable mixed precision training')
     options.add_argument('-gs', '--gpu-selector', type=int, nargs='+', default=None,
@@ -80,7 +81,6 @@ def arg_parser():
     options.add_argument('-sa', '--sample-axis', type=int, default=2,
                             help='axis on which to sample for 2d (None for random orientation when NIfTI images given) [Default=2]')
     options.add_argument('-sd', '--seed', type=int, default=0, help='set seed for reproducibility [Default=0]')
-    options.add_argument('--tiff', action='store_true', default=False, help='dataset are tiff images [Default=False]')
     options.add_argument('-vs', '--valid-split', type=float, default=0.2,
                           help='split the data in source_dir and target_dir into train/validation '
                                'with this split percentage [Default=0]')
@@ -213,8 +213,8 @@ def main(args=None):
             except ImportError:
                 logger.info('Mixed precision training (i.e., the package `apex`) not available.')
 
-        use_3d = args.net3d and not args.tiff
-        if args.net3d and args.tiff: logger.warning('Cannot train a 3D network with TIFF images, creating a 2D network.')
+        use_3d = args.net3d and args.ext is None
+        if args.net3d and args.ext is not None: logger.warning(f'Cannot train a 3D network with {args.ext} images, creating a 2D network.')
         n_input, n_output = len(args.source_dir), len(args.target_dir)
 
         if args.ord_params is not None and n_output > 1:
@@ -276,7 +276,7 @@ def main(args=None):
             args.n_jobs = num_cpus
 
         # control random cropping patch size (or if used at all)
-        if not args.tiff:
+        if args.ext is None:
             cropper = tfms.RandomCrop3D(args.patch_size) if args.net3d else tfms.RandomCrop2D(args.patch_size, args.sample_axis)
             tfm = [cropper] if args.patch_size > 0 else [] if args.net3d else [tfms.RandomSlice(args.sample_axis)]
         else:
@@ -296,13 +296,13 @@ def main(args=None):
             tfm.append(tfms.ToTensor())
 
         # define dataset and split into training/validation set
-        dataset = MultimodalNiftiDataset(args.source_dir, args.target_dir, Compose(tfm)) if not args.tiff else \
-                  MultimodalTiffDataset(args.source_dir, args.target_dir, Compose(tfm))
+        dataset = MultimodalNiftiDataset(args.source_dir, args.target_dir, Compose(tfm)) if args.ext is None else \
+                  MultimodalImageDataset(args.source_dir, args.target_dir, Compose(tfm), ext='*.' + args.ext)
         logger.debug(f'Number of training images: {len(dataset)}')
 
         if args.valid_source_dir is not None and args.valid_target_dir is not None:
-            valid_dataset = MultimodalNiftiDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm)) if not args.tiff else \
-                            MultimodalTiffDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm))
+            valid_dataset = MultimodalNiftiDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm)) if args.ext is None else \
+                            MultimodalImageDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm), ext='*.' + args.ext)
             logger.debug(f'Number of validation images: {len(valid_dataset)}')
             train_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.n_jobs, shuffle=True, pin_memory=args.pin_memory)
             validation_loader = DataLoader(valid_dataset, batch_size=args.batch_size, num_workers=args.n_jobs, pin_memory=args.pin_memory)
