@@ -242,6 +242,7 @@ def main(args=None):
             raise SynthNNError(f'Invalid NN type: {args.nn_arch}. {{nconv, unet, vae}} are the only supported options.')
         model.train(True)
         logger.debug(model)
+        logger.info(f'Number of trainable parameters in model: {sum(p.numel() for p in model.parameters() if p.requires_grad)}')
 
         # load a trained model if desired
         if os.path.isfile(args.trained_model):
@@ -255,17 +256,17 @@ def main(args=None):
         if args.multi_gpu and n_gpus <= 1: logger.warning('Multi-GPU functionality is not available on your system.')
         if use_multi:
             n_gpus = len(args.gpu_selector) if args.gpu_selector is not None else n_gpus
-            logger.debug(f'Enabling use of {n_gpus} gpus')
+            logger.info(f'Enabling use of {n_gpus} gpus')
             model = torch.nn.DataParallel(model, device_ids=args.gpu_selector)
 
         # initialize/load optimizer state
-        logger.debug(f'LR: {args.learning_rate:.5f}')
+        logger.info(('Max ' if args.lr_scheduler else '') + f'LR: {args.learning_rate:.5f}')
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
         if os.path.isfile(args.trained_model) and not args.no_load_opt:
             optimizer = load_opt(optimizer, args.trained_model)
 
         # initialize the weights with user-defined initialization routine
-        logger.debug(f'Initializing weights with {args.init}')
+        logger.info(f'Initializing weights with {args.init}')
         init_weights(model, args.init, args.init_gain)
 
         # check number of jobs requested and CPUs available
@@ -284,7 +285,7 @@ def main(args=None):
 
         # add data augmentation if desired
         if args.prob is not None:
-            logger.debug('Adding data augmentation transforms')
+            logger.info('Adding data augmentation transforms')
             if args.net3d and (args.prob[0] > 0 or args.prob[1] > 0 or args.prob[3] > 0):
                 logger.warning('Cannot do affine or flipping or block data augmentation with 3d networks')
                 args.prob[0], args.prob[1], args.prob[3] = 0, 0, 0
@@ -292,18 +293,18 @@ def main(args=None):
             tfm.extend(tfms.get_transforms(args.prob, args.tfm_x, args.tfm_y, args.rotate, args.translate, args.scale,
                                            args.vflip, args.hflip, args.gamma, args.gain, args.noise_std, args.block))
         else:
-            logger.debug('No data augmentation will be used (except random cropping if patch_size > 0)')
+            logger.info('No data augmentation will be used (except random cropping if patch_size > 0)')
             tfm.append(tfms.ToTensor())
 
         # define dataset and split into training/validation set
         dataset = MultimodalNiftiDataset(args.source_dir, args.target_dir, Compose(tfm)) if args.ext is None else \
                   MultimodalImageDataset(args.source_dir, args.target_dir, Compose(tfm), ext='*.' + args.ext)
-        logger.debug(f'Number of training images: {len(dataset)}')
+        logger.info(f'Number of training images: {len(dataset)}')
 
         if args.valid_source_dir is not None and args.valid_target_dir is not None:
             valid_dataset = MultimodalNiftiDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm)) if args.ext is None else \
                             MultimodalImageDataset(args.valid_source_dir, args.valid_target_dir, Compose(tfm), ext='*.' + args.ext)
-            logger.debug(f'Number of validation images: {len(valid_dataset)}')
+            logger.info(f'Number of validation images: {len(valid_dataset)}')
             train_loader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.n_jobs, shuffle=True, pin_memory=args.pin_memory)
             validation_loader = DataLoader(valid_dataset, batch_size=args.batch_size, num_workers=args.n_jobs, pin_memory=args.pin_memory)
         else:
@@ -323,7 +324,7 @@ def main(args=None):
 
         # setup a learning rate scheduler if desired
         if args.lr_scheduler:
-            logger.debug('Enabling burn-in cosine annealing LR scheduler')
+            logger.info('Enabling burn-in cosine annealing LR scheduler')
             scheduler = BurnCosineLR(optimizer, args.n_epochs)
 
         # training and validation loop
