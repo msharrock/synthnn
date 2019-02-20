@@ -144,9 +144,19 @@ class TestCLI(unittest.TestCase):
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 
+    def test_nconv_2d_crop_cli(self):
+        train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
+        args = train_args + (f'-o {self.out_dir}/nconv.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 -e tif -ps 8 '
+                             f'-ocf {self.jsonfn}').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
     def test_nconv_2d_var_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 -e tif '
+        args = train_args + (f'-o {self.out_dir}/nconv.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 -e tif '
                              f'-ocf {self.jsonfn}').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -155,7 +165,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(retval, 0)
 
     def test_nconv_3d_var_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 1 --net3d '
+        args = self.train_args + (f'-o {self.out_dir}/nconv.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 1 --net3d '
                                   f'-ocf {self.jsonfn}').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -231,16 +241,16 @@ class TestCLI(unittest.TestCase):
 
     def test_vae_2d_3l_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 3 -cbp 2 -bs 4 -e tif '
-                             f'--img-dim 256 256 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
+        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 3 -cbp 2 -bs 4 -e tif -ps 32 '
+                             f'--img-dim 32 32 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         #TODO: cannot test 2d prediction here because nii needs to be same size as tiff, fix
 
     def test_vae_2d_5l_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 5 -cbp 1 -bs 4 -e tif '
-                             f'--img-dim 256 256 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
+        args = train_args + (f'-o {self.out_dir}/vae.mdl -na vae -ne 1 -nl 5 -cbp 1 -bs 4 -e tif -ps 32 '
+                             f'--img-dim 32 32 --latent-size 10 -ocf {self.jsonfn} -sa 0').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         #TODO: cannot test 2d prediction here because nii needs to be same size as tiff, fix

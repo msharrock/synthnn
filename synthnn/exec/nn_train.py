@@ -281,7 +281,7 @@ def main(args=None):
             cropper = tfms.RandomCrop3D(args.patch_size) if args.net3d else tfms.RandomCrop2D(args.patch_size, args.sample_axis)
             tfm = [cropper] if args.patch_size > 0 else [] if args.net3d else [tfms.RandomSlice(args.sample_axis)]
         else:
-            tfm = []
+            tfm = [tfms.RandomCrop(args.patch_size)] if args.patch_size > 0 else []
 
         # add data augmentation if desired
         if args.prob is not None:
