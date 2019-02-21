@@ -135,7 +135,7 @@ def main(args=None):
                 _, base, _ = split_filename(fn[0])
                 logger.info(f'Starting synthesis of image: {base}. ({k+1}/{num_imgs})')
                 img_nib = nib.load(fn[0])
-                img = np.stack([nib.load(f).get_data().view(np.float32) for f in fn])  # set to float32 to save memory
+                img = np.stack([np.asarray(nib.load(f).get_data(), dtype=np.float32) for f in fn])  # set to float32 to save memory
                 if img.ndim == 3: img = img[np.newaxis, ...]
                 if psz > 0:  # patch-based 3D synthesis
                     out_img = np.zeros((args.n_output,) + img.shape[1:])
@@ -185,7 +185,7 @@ def main(args=None):
                 _, base, _ = split_filename(fn[0])
                 logger.info(f'Starting synthesis of image: {base}. ({k+1}/{num_imgs})')
                 img_nib = nib.load(fn[0])
-                img = np.stack([nib.load(f).get_data().view(np.float32) for f in fn])  # set to float32 to save memory
+                img = np.stack([np.asarray(nib.load(f).get_data(), dtype=np.float32) for f in fn])  # set to float32 to save memory
                 if img.ndim == 3: img = img[np.newaxis, ...]
                 out_img = np.zeros((nsyn, args.n_output) + img.shape[1:])
                 num_batches = floor(img.shape[axis+1] / bs)  # add one to axis to ignore channel dim
