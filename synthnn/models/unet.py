@@ -196,7 +196,7 @@ class Unet(torch.nn.Module):
         elif norm == 'weight':   layers[0][1] = nn.utils.weight_norm(layers[0][1])
         elif norm == 'spectral': layers[0][1] = nn.utils.spectral_norm(layers[0][1])
         layers.append(activation)
-        if self.self_attention: layers = [SelfAttention(out_c)] + layers
+        if self.self_attention: layers.append(SelfAttention(out_c))
         ca = nn.Sequential(*layers)
         return ca
 
