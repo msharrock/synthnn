@@ -10,8 +10,7 @@ Author: Jacob Reinhold (jacob.reinhold@jhu.edu)
 Created on: Jan 29, 2019
 """
 
-__all__ = ['VAE',
-           'VAELoss']
+__all__ = ['VAE']
 
 import logging
 from typing import Tuple, Union
@@ -22,6 +21,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from .unet import Unet
+from ..util.loss import VAELoss
 
 logger = logging.getLogger(__name__)
 
@@ -105,14 +105,3 @@ class VAE(Unet):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         return self.decode(z)
-
-
-class VAELoss(nn.Module):
-    def __init__(self):
-        super(VAELoss, self).__init__()
-        self.mse_loss = nn.MSELoss(reduction="sum")
-
-    def forward(self, x, recon_x, mu, logvar):
-        MSE = self.mse_loss(recon_x, x)
-        KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2)-logvar.exp())
-        return MSE + KLD

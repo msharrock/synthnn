@@ -20,12 +20,11 @@ __all__ = ['Unet']
 import logging
 from typing import Optional, Tuple, Union
 
-import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from synthnn import get_act, get_norm3d, get_norm2d, SynthNNError
+from synthnn import get_act, get_norm3d, get_norm2d, get_loss, OrdLoss
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None):
+                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None, loss:Optional[str]=None):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -93,7 +92,7 @@ class Unet(torch.nn.Module):
         self.ord_params = ord_params
         self.noise_lvl = noise_lvl
         self.device = device
-        self.criterion = nn.MSELoss() if ord_params is None else _OrdLoss(ord_params, device, is_3d)
+        self.criterion = get_loss(loss) if ord_params is None else OrdLoss(ord_params, device, is_3d)
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
         # define the model layers here to make them visible for autograd
@@ -220,36 +219,3 @@ class Unet(torch.nn.Module):
             y_hat = self.forward(x, return_var)
             if not return_var: y_hat = self.criterion.predict(y_hat)
             return y_hat
-
-
-class _OrdLoss(nn.Module):
-    def __init__(self, params:Tuple[int,int,int], device:torch.device, is_3d:bool=False):
-        super(_OrdLoss, self).__init__()
-        start, stop, n_bins = params
-        self.device = device
-        self.bins = np.linspace(start, stop, n_bins-1, endpoint=False)
-        self.tbins = self._linspace(start, stop, n_bins, is_3d).to(self.device)
-        self.mae = nn.L1Loss()
-        self.ce = nn.CrossEntropyLoss()
-
-    @staticmethod
-    def _linspace(start:int, stop:int, n_bins:int, is_3d:bool) -> torch.Tensor:
-        rng = np.linspace(start, stop, n_bins, dtype=np.float32)
-        trng = torch.from_numpy(rng[:,None,None])
-        return trng if not is_3d else trng[...,None]
-
-    def _digitize(self, x:torch.Tensor) -> torch.Tensor:
-        return torch.from_numpy(np.digitize(x.cpu().detach().numpy(), self.bins)).squeeze().to(self.device)
-
-    def predict(self, yd_hat:torch.Tensor) -> torch.Tensor:
-        p = F.softmax(yd_hat, dim=1)
-        intensity_bins = torch.ones_like(yd_hat) * self.tbins
-        y_hat = torch.sum(p * intensity_bins, dim=1, keepdim=True)
-        return y_hat
-
-    def forward(self, y:torch.Tensor, yd_hat:torch.Tensor):
-        yd = self._digitize(y)
-        CE = self.ce(yd_hat, yd)
-        y_hat = self.predict(yd_hat)
-        MAE = self.mae(y_hat, y)
-        return CE + MAE

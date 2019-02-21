@@ -63,6 +63,7 @@ def arg_parser():
     options.add_argument('-gs', '--gpu-selector', type=int, nargs='+', default=None,
                          help='use gpu(s) selected here, None uses all available gpus if --multi-gpus enabled '
                               'else None uses first available GPU [Default=None]')
+    options.add_argument('-l', '--loss', type=str, default=None, help='Use this specified loss function [Default=None, MSE for Unet]')
     options.add_argument('-lrs', '--lr-scheduler', action='store_true', default=False,
                          help='use a cosine-annealing based learning rate scheduler [Default=False]')
     options.add_argument('-mg', '--multi-gpu', action='store_true', default=False, help='use multiple gpus [Default=False]')
@@ -126,7 +127,7 @@ def arg_parser():
                             help='specify neural network architecture to use')
     nn_options.add_argument('-ns', '--no-skip', action='store_true', default=False, help='do not use skip connections in unet [Default=False]')
     nn_options.add_argument('-nz', '--noise-lvl', type=float, default=0, help='add this level of noise to model parameters [Default=0]')
-    nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'none'),
+    nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'layer', 'none'),
                             help='type of normalization layer to use in network [Default=instance]')
     nn_options.add_argument('-ord', '--ord-params', type=int, nargs=3, default=None,
                             help='ordinal regression params (start, stop, n_bins) [Default=None]')

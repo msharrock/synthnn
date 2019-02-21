@@ -82,6 +82,8 @@ def get_norm2d(name: str, num_features: int, params: Optional[dict]=None) -> nor
         norm = nn.InstanceNorm2d(num_features, affine=True) if params is None else nn.InstanceNorm2d(num_features, **params)
     elif name.lower() == 'batch':
         norm = nn.BatchNorm2d(num_features) if params is None else nn.BatchNorm2d(num_features, **params)
+    elif name.lower() == 'layer':
+        norm = nn.GroupNorm(1, num_features)
     elif name.lower() == 'none':
         norm = None
     else:
@@ -107,6 +109,8 @@ def get_norm3d(name: str, num_features: int, params: Optional[dict]=None) -> nor
         norm = nn.InstanceNorm3d(num_features, affine=True) if params is None else nn.InstanceNorm3d(num_features, **params)
     elif name.lower() == 'batch':
         norm = nn.BatchNorm3d(num_features) if params is None else nn.BatchNorm3d(num_features, **params)
+    elif name.lower() == 'layer':
+        norm = nn.GroupNorm(1, num_features)
     elif name.lower() == 'none':
         norm = None
     else:

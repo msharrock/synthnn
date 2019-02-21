@@ -113,6 +113,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "clip": args.clip,
             "fp16": args.fp16,
             "learning_rate": args.learning_rate,
+            "loss": args.loss,
             "lr_scheduler": args.lr_scheduler,
             "n_epochs": args.n_epochs,
             "n_jobs": args.n_jobs,

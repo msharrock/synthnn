@@ -13,19 +13,12 @@ Created on: Sep 07, 2018
 import json
 import os
 import shutil
-import sys
 import tempfile
 import unittest
 
 from synthnn.exec.nn_train import main as nn_train
 from synthnn.exec.nn_predict import main as nn_predict
 from synthnn.util.io import glob_nii, split_filename
-
-try:
-    import fastai
-    from synthnn.exec.fa_train import main as fa_train
-except ImportError:
-    fastai = None
 
 
 class TestCLI(unittest.TestCase):
@@ -176,6 +169,33 @@ class TestCLI(unittest.TestCase):
     def test_unet_cli(self):
         args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -ps 16 -bs 2 --net3d '
                                   f'-ocf {self.jsonfn}').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_unet_ncc_cli(self):
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+                                  f'-ocf {self.jsonfn} -l ncc').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_unet_mae_cli(self):
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+                                  f'-ocf {self.jsonfn} -l mae').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_unet_layernorm_cli(self):
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+                                  f'-ocf {self.jsonfn} -nm layer').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)
