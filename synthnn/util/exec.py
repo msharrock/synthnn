@@ -107,6 +107,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "normalization": args.normalization,
             "ord_params": args.ord_params,
             "out_activation": args.out_activation,
+            "self_attention": args.self_attention,
         },
         "Training Options": {
             "checkpoint": args.checkpoint,

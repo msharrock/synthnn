@@ -24,7 +24,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from synthnn import get_act, get_norm3d, get_norm2d, get_loss, OrdLoss
+from synthnn import get_act, get_norm3d, get_norm2d, get_loss, OrdLoss, SelfAttention
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +58,8 @@ class Unet(torch.nn.Module):
         noise_lvl (float): add gaussian noise to weights with this std [Default=0]
         device (torch.device): device to place new parameters/tensors on (only necessary when doing ordinal regression)
             [Default=None]
+        loss (str): loss function used to train network
+        self_attention (bool): use self-attention in (2d) conv layers
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -71,7 +73,8 @@ class Unet(torch.nn.Module):
                  add_two_up:bool=False, normalization:str='instance', activation:str='relu', output_activation:str='linear',
                  is_3d:bool=True, interp_mode:str='nearest', enable_dropout:bool=True,
                  enable_bias:bool=False, n_input:int=1, n_output:int=1, no_skip:bool=False,
-                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None, loss:Optional[str]=None):
+                 ord_params:Tuple[int,int,int]=None, noise_lvl:float=0, device:torch.device=None,
+                 loss:Optional[str]=None, self_attention:bool=False):
         super(Unet, self).__init__()
         # setup and store instance parameters
         self.n_layers = n_layers
@@ -93,6 +96,7 @@ class Unet(torch.nn.Module):
         self.noise_lvl = noise_lvl
         self.device = device
         self.criterion = get_loss(loss) if ord_params is None else OrdLoss(ord_params, device, is_3d)
+        self.self_attention = self_attention
         nl = n_layers - 1
         def lc(n): return int(2 ** (channel_base_power + n))  # shortcut to layer channel count
         # define the model layers here to make them visible for autograd
@@ -182,13 +186,17 @@ class Unet(torch.nn.Module):
                   act:Optional[str]=None, norm:Optional[str]=None) -> nn.Sequential:
         ksz = kernel_sz or self.kernel_sz
         activation = get_act(act) if act is not None else get_act('relu')
-        normalization = get_norm3d(norm, out_c) if norm is not None and self.is_3d else \
-                        get_norm3d('instance', out_c) if self.is_3d else \
-                        get_norm2d(norm, out_c) if norm is not None and not self.is_3d else \
-                        get_norm2d('instance', out_c)
         layers = [self._conv(in_c, out_c, ksz)]
-        if normalization is not None: layers.append(normalization)
+        if norm in [None, 'instance', 'batch', 'layer']:
+             normalization = get_norm3d(norm, out_c) if norm is not None and self.is_3d else \
+                             get_norm3d('instance', out_c) if self.is_3d else \
+                             get_norm2d(norm, out_c) if norm is not None and not self.is_3d else \
+                             get_norm2d('instance', out_c)
+             if normalization is not None: layers.append(normalization)
+        elif norm == 'weight':   layers[0][1] = nn.utils.weight_norm(layers[0][1])
+        elif norm == 'spectral': layers[0][1] = nn.utils.spectral_norm(layers[0][1])
         layers.append(activation)
+        if self.self_attention: layers = [SelfAttention(out_c)] + layers
         ca = nn.Sequential(*layers)
         return ca
 

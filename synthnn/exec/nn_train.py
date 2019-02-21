@@ -127,12 +127,15 @@ def arg_parser():
                             help='specify neural network architecture to use')
     nn_options.add_argument('-ns', '--no-skip', action='store_true', default=False, help='do not use skip connections in unet [Default=False]')
     nn_options.add_argument('-nz', '--noise-lvl', type=float, default=0, help='add this level of noise to model parameters [Default=0]')
-    nn_options.add_argument('-nm', '--normalization', type=str, default='instance', choices=('instance', 'batch', 'layer', 'none'),
+    nn_options.add_argument('-nm', '--normalization', type=str, default='instance',
+                            choices=('instance', 'batch', 'layer', 'weight', 'spectral', 'none'),
                             help='type of normalization layer to use in network [Default=instance]')
     nn_options.add_argument('-ord', '--ord-params', type=int, nargs=3, default=None,
                             help='ordinal regression params (start, stop, n_bins) [Default=None]')
     nn_options.add_argument('-oac', '--out-activation', type=str, default='linear', choices=('relu', 'lrelu', 'linear'),
                             help='type of activation to use in network on output [Default=linear]')
+    nn_options.add_argument('-sat', '--self-attention', action='store_true', default=False,
+                            help='use self-attention in conv layers [Default=False]')
 
     vae_options = parser.add_argument_group('VAE Options')
     vae_options.add_argument('-id', '--img-dim', type=int, nargs='+', default=None, help='if using VAE, then input image dimension must '
@@ -221,6 +224,10 @@ def main(args=None):
         if args.ord_params is not None and n_output > 1:
             raise SynthNNError('Ordinal regression does not support multiple outputs.')
 
+        if args.self_attention and args.net3d:
+            logger.warning('Cannot use self-attention with 3D networks, not using self-attention.')
+            args.self_attention = False
+
         # get the desired neural network architecture
         if args.nn_arch == 'nconv':
             from synthnn.models.nconvnet import SimpleConvNet
@@ -234,7 +241,8 @@ def main(args=None):
                          activation=args.activation, output_activation=args.out_activation, interp_mode=args.interp_mode,
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
                          n_input=n_input, n_output=n_output, no_skip=args.no_skip,
-                         ord_params=args.ord_params, noise_lvl=args.noise_lvl, device=device)
+                         ord_params=args.ord_params, noise_lvl=args.noise_lvl, device=device,
+                         loss=args.loss, self_attention=args.self_attention)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,
