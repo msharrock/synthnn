@@ -182,14 +182,7 @@ def load_opt(optimizer, fn):
 
 
 def save_model(model, optimizer, t, fn):
-    state_dict = model.state_dict()
-    if hasattr(model, 'module'):  # used for when dataparallel applied
-        # create new OrderedDict that does not contain `module.`
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-        state_dict = new_state_dict
+    state_dict = model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
     state = {'epoch': t, 'state_dict': state_dict, 'optimizer': optimizer.state_dict()}
     torch.save(state, fn)
 
