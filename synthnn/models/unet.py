@@ -208,9 +208,9 @@ class Unet(torch.nn.Module):
         return dca
 
     def _upsampconv(self, in_c:int, out_c:int):
-        layers = self._conv(in_c, out_c, 3, bias=self.enable_bias)
+        layers = [self._conv(in_c, out_c, 3, bias=self.enable_bias)]
         if self.self_attention: layers.append(SelfAttention(out_c))
-        usc = nn.Sequential(*layers)
+        usc = nn.Sequential(*layers) if len(layers) > 1 else layers[0]
         return usc
 
     def _final(self, in_c:int, out_c:int, out_act:Optional[str]=None, bias:bool=False):
