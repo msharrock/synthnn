@@ -59,7 +59,7 @@ class Unet(torch.nn.Module):
         device (torch.device): device to place new parameters/tensors on (only necessary when doing ordinal regression)
             [Default=None]
         loss (str): loss function used to train network
-        self_attention (bool): use self-attention in (2d) conv layers
+        self_attention (bool): use self-attention in upsampconv layers (only works with 2d networks)
 
     References:
         [1] O. Cicek, A. Abdulkadir, S. S. Lienkamp, T. Brox, and O. Ronneberger,
@@ -109,8 +109,7 @@ class Unet(torch.nn.Module):
                                                        act=(a, a), norm=(nm, nm))
                                         for n in reversed(range(1,nl+1))])
         self.finish = self._final(lc(0) + n_input if not no_skip else lc(0), n_output, oa, bias=enable_bias)
-        self.upsampconvs = nn.ModuleList([self._conv(lc(n+1), lc(n), 3, bias=enable_bias)
-                                          for n in reversed(range(nl+1))])
+        self.upsampconvs = nn.ModuleList([self._upsampconv(lc(n+1), lc(n)) for n in reversed(range(nl+1))])
 
     def forward(self, x:torch.Tensor, return_var:bool=False) -> torch.Tensor:
         x = self._fwd_skip(x, return_var) if not self.no_skip else self._fwd_no_skip(x, return_var)
@@ -196,7 +195,6 @@ class Unet(torch.nn.Module):
         elif norm == 'weight':   layers[0][1] = nn.utils.weight_norm(layers[0][1])
         elif norm == 'spectral': layers[0][1] = nn.utils.spectral_norm(layers[0][1])
         layers.append(activation)
-        if self.self_attention: layers.append(SelfAttention(out_c))
         ca = nn.Sequential(*layers)
         return ca
 
@@ -204,10 +202,16 @@ class Unet(torch.nn.Module):
                   kernel_sz:Tuple[Optional[int],Optional[int]]=(None,None),
                   act:Tuple[Optional[str],Optional[str]]=(None,None),
                   norm:Tuple[Optional[str],Optional[str]]=(None,None)) -> nn.Sequential:
-        dca = nn.Sequential(
-            self._conv_act(in_c,  mid_c, kernel_sz[0], act[0], norm[0]),
-            self._conv_act(mid_c, out_c, kernel_sz[1], act[1], norm[1]))
+        layers = [self._conv_act(in_c,  mid_c, kernel_sz[0], act[0], norm[0]),
+                  self._conv_act(mid_c, out_c, kernel_sz[1], act[1], norm[1])]
+        dca = nn.Sequential(*layers)
         return dca
+
+    def _upsampconv(self, in_c:int, out_c:int):
+        layers = self._conv(in_c, out_c, 3, bias=self.enable_bias)
+        if self.self_attention: layers.append(SelfAttention(out_c))
+        usc = nn.Sequential(*layers)
+        return usc
 
     def _final(self, in_c:int, out_c:int, out_act:Optional[str]=None, bias:bool=False):
         if self.ord_params is None:
