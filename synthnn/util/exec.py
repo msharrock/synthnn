@@ -25,6 +25,7 @@ from synthnn import SynthNNError
 
 
 def setup_log(verbosity):
+    """ get logger with appropriate logging level and message """
     if verbosity == 1:
         level = logging.getLevelName('INFO')
     elif verbosity >= 2:
@@ -35,6 +36,7 @@ def setup_log(verbosity):
 
 
 def get_args(args, arg_parser=None):
+    """ handle arguments (through config file or argparser) for exec scripts """
     if arg_parser is not None:
         no_config_file = args is not None or (args is None and len(sys.argv[1:]) > 1) or sys.argv[1] == '-h' or sys.argv[1] == '--help'
     else:
@@ -51,7 +53,7 @@ def get_args(args, arg_parser=None):
 
 
 def get_device(args, logger):
-    # define device to put tensors on
+    """ get the device(s) for tensors to be put on """
     cuda_avail = torch.cuda.is_available()
     use_cuda = cuda_avail and not args.disable_cuda
     if use_cuda: torch.backends.cudnn.benchmark = True
@@ -68,6 +70,7 @@ def get_device(args, logger):
 
 
 def write_out_config(args, n_gpus, n_input, n_output, use_3d):
+    """ write the output config file with all input arguments for exec scripts """
     arg_dict = {
         "Required": {
             "predict_dir": ["SET ME!"],
@@ -92,6 +95,7 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
         "Neural Network Options": {
             "activation": args.activation,
             "add_two_up": args.add_two_up,
+            "attention": args.attention,
             "channel_base_power": args.channel_base_power,
             "dropout_prob": args.dropout_prob,
             "enable_bias": args.enable_bias,
@@ -107,7 +111,6 @@ def write_out_config(args, n_gpus, n_input, n_output, use_3d):
             "normalization": args.normalization,
             "ord_params": args.ord_params,
             "out_activation": args.out_activation,
-            "self_attention": args.self_attention,
         },
         "Training Options": {
             "checkpoint": args.checkpoint,

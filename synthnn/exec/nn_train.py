@@ -63,7 +63,8 @@ def arg_parser():
     options.add_argument('-gs', '--gpu-selector', type=int, nargs='+', default=None,
                          help='use gpu(s) selected here, None uses all available gpus if --multi-gpus enabled '
                               'else None uses first available GPU [Default=None]')
-    options.add_argument('-l', '--loss', type=str, default=None, help='Use this specified loss function [Default=None, MSE for Unet]')
+    options.add_argument('-l', '--loss', type=str, default=None, choices=('mse','mae','ncc','zncc'),
+                         help='Use this specified loss function [Default=None, MSE for Unet]')
     options.add_argument('-lrs', '--lr-scheduler', action='store_true', default=False,
                          help='use a cosine-annealing based learning rate scheduler [Default=False]')
     options.add_argument('-mg', '--multi-gpu', action='store_true', default=False, help='use multiple gpus [Default=False]')
@@ -100,6 +101,8 @@ def arg_parser():
     nn_options.add_argument('-atu', '--add-two-up', action='store_true', default=False,
                             help='Add two to the kernel size on the upsampling in the U-Net as '
                                  'per Zhao, et al. 2017 [Default=False]')
+    nn_options.add_argument('-at', '--attention', action='store_true', default=False,
+                            help='use attention gates in up conv layers in unet [Default=False]')
     nn_options.add_argument('-cbp', '--channel-base-power', type=int, default=5,
                             help='2 ** channel_base_power is the number of channels in the first layer '
                                  'and increases in each proceeding layer such that in the n-th layer there are '
@@ -134,8 +137,6 @@ def arg_parser():
                             help='ordinal regression params (start, stop, n_bins) [Default=None]')
     nn_options.add_argument('-oac', '--out-activation', type=str, default='linear', choices=('relu', 'lrelu', 'linear'),
                             help='type of activation to use in network on output [Default=linear]')
-    nn_options.add_argument('-sat', '--self-attention', action='store_true', default=False,
-                            help='use self-attention in conv layers [Default=False]')
 
     vae_options = parser.add_argument_group('VAE Options')
     vae_options.add_argument('-id', '--img-dim', type=int, nargs='+', default=None, help='if using VAE, then input image dimension must '
@@ -217,9 +218,9 @@ def main(args=None):
         if args.ord_params is not None and n_output > 1:
             raise SynthNNError('Ordinal regression does not support multiple outputs.')
 
-        if args.self_attention and args.net3d:
-            logger.warning('Cannot use self-attention with 3D networks, not using self-attention.')
-            args.self_attention = False
+        if args.attention and args.net3d:
+            logger.warning('Cannot use attention with 3D networks, not using attention.')
+            args.attention = False
 
         # get the desired neural network architecture
         if args.nn_arch == 'nconv':
@@ -235,7 +236,7 @@ def main(args=None):
                          enable_dropout=True, enable_bias=args.enable_bias, is_3d=use_3d,
                          n_input=n_input, n_output=n_output, no_skip=args.no_skip,
                          ord_params=args.ord_params, noise_lvl=args.noise_lvl, device=device,
-                         loss=args.loss, self_attention=args.self_attention)
+                         loss=args.loss, attention=args.attention)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power, activation=args.activation,

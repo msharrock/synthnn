@@ -28,6 +28,8 @@ def get_loss(name):
         loss = nn.MSELoss()
     elif name == 'ncc':
         loss = NCCLoss()
+    elif name == 'zncc':
+        loss = NCCLoss(True)
     elif name == 'mae':
         loss = nn.L1Loss()
     else:
@@ -37,9 +39,12 @@ def get_loss(name):
 
 class NCCLoss(nn.Module):
     """ normalized cross correlation loss """
-    @staticmethod
-    def _standardize(x):
-        xm = x.mean()
+    def __init__(self, mean_subtract=False):
+        super(NCCLoss, self).__init__()
+        self.mean_subtract = mean_subtract
+
+    def _standardize(self, x):
+        xm = x.mean() if self.mean_subtract else 0
         return (x - xm) / torch.norm(x - xm)
 
     def forward(self, y:torch.Tensor, y_hat:torch.Tensor):

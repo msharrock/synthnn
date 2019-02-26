@@ -194,7 +194,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(retval, 0)
 
     def test_unet_layernorm_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 2 -cbp 1 -ps 16 -bs 2 --net3d '
                                   f'-ocf {self.jsonfn} -nm layer').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -203,7 +203,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(retval, 0)
 
     def test_unet_spectral_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 2 -cbp 1 -ps 16 -bs 2 --net3d '
                                   f'-ocf {self.jsonfn} -nm spectral').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -212,7 +212,7 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(retval, 0)
 
     def test_unet_weight_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 1 -cbp 1 -ps 16 -bs 2 --net3d '
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 2 -cbp 1 -ps 16 -bs 2 --net3d '
                                   f'-ocf {self.jsonfn} -nm weight').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
@@ -220,10 +220,10 @@ class TestCLI(unittest.TestCase):
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 
-    def test_unet_selfattention_cli(self):
+    def test_unet_attention_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/nconv.mdl -na nconv -ne 1 -nl 1 -cbp 1 -ps 0 -bs 2 -e tif -ps 8 '
-                             f'-ocf {self.jsonfn} -sat').split()
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 2 -cbp 3 -ps 0 -bs 2 -e tif -ps 8 '
+                             f'-ocf {self.jsonfn} -at').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)

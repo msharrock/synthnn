@@ -98,7 +98,7 @@ def main(args=None):
                          interp_mode=args.interp_mode, enable_dropout=nsyn > 1, enable_bias=args.enable_bias,
                          n_input=args.n_input, n_output=args.n_output, no_skip=args.no_skip,
                          ord_params=args.ord_params, noise_lvl=args.noise_lvl, device=device,
-                         loss=args.loss, self_attention=args.self_attention)
+                         loss=args.loss, attention=args.attention)
         elif args.nn_arch == 'vae':
             from synthnn.models.vae import VAE
             model = VAE(args.n_layers, args.img_dim, channel_base_power=args.channel_base_power,
