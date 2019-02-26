@@ -13,10 +13,12 @@ Created on: Nov 2, 2018
 __all__ = ['get_act',
            'get_norm2d',
            'get_norm3d',
+           'get_optim',
            'init_weights']
 
 from typing import Optional, Union
 
+import torch
 from torch import nn
 
 from ..errors import SynthNNError
@@ -116,6 +118,27 @@ def get_norm3d(name: str, num_features: int, params: Optional[dict]=None) -> nor
     else:
         raise SynthNNError(f'Normalization: "{name}" not a valid normalization routine or not supported.')
     return norm
+
+
+def get_optim(name):
+    """ get an optimizer by name """
+    if name.lower() == 'adam':
+        optimizer = torch.optim.Adam
+    elif name.lower() == 'sgd':
+        optimizer = torch.optim.SGD
+    elif name.lower() == 'rmsprop':
+        optimizer = torch.optim.rmsprop
+    elif name.lower() == 'adagrad':
+        optimizer = torch.optim.adagrad
+    elif name.lower() == 'adabound':
+        from .optim import AdaBound
+        optimizer = AdaBound
+    elif name.lower() == 'amsbound':
+        from .optim import AMSBound
+        optimizer = AMSBound
+    else:
+        raise SynthNNError(f'Optimizer: "{name}" not a valid optimizer routine or not supported.')
+    return optimizer
 
 
 def init_weights(net, init_type='kaiming', init_gain=0.02):

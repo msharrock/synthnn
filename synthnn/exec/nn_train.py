@@ -31,7 +31,7 @@ with warnings.catch_warnings():
     from torch.utils.data.sampler import SubsetRandomSampler
     from niftidataset import MultimodalNiftiDataset, MultimodalImageDataset
     import niftidataset.transforms as tfms
-    from synthnn import SynthNNError, init_weights, BurnCosineLR, split_filename
+    from synthnn import SynthNNError, init_weights, get_optim, BurnCosineLR, split_filename
     from synthnn.util.exec import get_args, get_device, setup_log, write_out_config
 
 
@@ -72,6 +72,9 @@ def arg_parser():
                             help='number of CPU processors to use (use 0 if CUDA enabled) [Default=0]')
     options.add_argument('-nlo', '--no-load-opt', action='store_true', default=False,
                          help='if loading a trained model, do not load the optimizer [Default=False]')
+    options.add_argument('-opt', '--optimizer', type=str, default='adam',
+                         choices=('adam','sgd','adagrad','rmsprop','adabound','amsbound'),
+                         help='Use this optimizer to train the network [Default=adam]')
     options.add_argument('-ocf', '--out-config-file', type=str, default=None,
                          help='output a config file for the options used in this experiment '
                               '(saves them as a json file with the name as input in this argument)')
@@ -102,7 +105,7 @@ def arg_parser():
                             help='Add two to the kernel size on the upsampling in the U-Net as '
                                  'per Zhao, et al. 2017 [Default=False]')
     nn_options.add_argument('-at', '--attention', action='store_true', default=False,
-                            help='use attention gates in up conv layers in unet [Default=False]')
+                            help='use attention gates in up conv layers in unet[Default=False]')
     nn_options.add_argument('-cbp', '--channel-base-power', type=int, default=5,
                             help='2 ** channel_base_power is the number of channels in the first layer '
                                  'and increases in each proceeding layer such that in the n-th layer there are '
@@ -264,7 +267,7 @@ def main(args=None):
 
         # initialize/load optimizer state
         logger.info(('Max ' if args.lr_scheduler else '') + f'LR: {args.learning_rate:.5f}')
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+        optimizer = get_optim(args.optimizer)(model.parameters(), lr=args.learning_rate)
         if os.path.isfile(args.trained_model) and not args.no_load_opt:
             optimizer = load_opt(optimizer, args.trained_model)
 
