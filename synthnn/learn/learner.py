@@ -155,7 +155,7 @@ class Learner:
     def _criterion(self, out, tgt):
         """ helper function to handle multiple outputs in model evaluation """
         c = self.model.module.criterion if isinstance(self.model,nn.DataParallel) else self.model.criterion
-        return c(tgt, out)
+        return c(out, tgt)
 
     def fp16(self):
         """ import and initialize mixed precision training package """
@@ -170,7 +170,6 @@ class Learner:
         n_gpus = torch.cuda.device_count()
         if n_gpus <= 1:
             logger.warning('Multi-GPU functionality is not available on your system.')
-            return
         else:
             n_gpus = len(gpu_selector) if gpu_selector is not None else n_gpus
             logger.info(f'Enabling use of {n_gpus} gpus')

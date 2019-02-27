@@ -32,7 +32,7 @@ class NCCLoss(nn.Module):
         xm = x.mean() if self.mean_subtract else 0
         return (x - xm) / torch.norm(x - xm)
 
-    def forward(self, y:torch.Tensor, y_hat:torch.Tensor):
+    def forward(self, y_hat:torch.Tensor, y:torch.Tensor):
         ncc = (self._standardize(y_hat) * self._standardize(y)).sum()
         return 1 - ncc
 
@@ -62,7 +62,7 @@ class OrdLoss(nn.Module):
         y_hat = torch.sum(p * intensity_bins, dim=1, keepdim=True)
         return y_hat
 
-    def forward(self, y:torch.Tensor, yd_hat:torch.Tensor):
+    def forward(self, yd_hat:torch.Tensor, y:torch.Tensor):
         yd = self._digitize(y)
         CE = self.ce(yd_hat, yd)
         y_hat = self.predict(yd_hat)
@@ -75,7 +75,7 @@ class VAELoss(nn.Module):
         super(VAELoss, self).__init__()
         self.mse_loss = nn.MSELoss(reduction="sum")
 
-    def forward(self, x, xhat):
+    def forward(self, xhat, x):
         recon_x, mu, logvar = xhat
         MSE = self.mse_loss(recon_x, x)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2)-logvar.exp())
