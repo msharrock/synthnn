@@ -90,7 +90,9 @@ class ExperimentConfig(dict):
         self.gamma = None
         self.gain = None
         self.block = None
-        self.noise_std = None
+        self.noise_pwr = None
+        self.mean = None
+        self.std = None
         self.tfm_x = None
         self.tfm_y = None
         super(ExperimentConfig, self).__init__(*args, **kwargs)
@@ -102,7 +104,7 @@ class ExperimentConfig(dict):
         if self.ord_params is not None and self.n_output > 1:
             SynthNNError('Ordinal regression does not support multiple outputs.')
 
-        if self.net3d and self.ext is not None:
+        if self.net3d and not (self.ext is None or 'nii' in self.ext):
             logger.warning(f'Cannot train a 3D network with {self.ext} images, creating a 2D network.')
             self.net3d = False
 
@@ -112,11 +114,12 @@ class ExperimentConfig(dict):
 
         if self.prob is not None:
             if self.net3d and (self.prob[0] > 0 or self.prob[1] > 0 or self.prob[3] > 0):
-                logger.warning('Cannot do affine, flipping or block data augmentation with 3D networks.')
+                logger.warning('Cannot do affine, flipping, block or normalization data augmentation with 3D networks.')
                 self.prob[0], self.prob[1], self.prob[3] = 0, 0, 0
                 self.rotate, self.translate, self.scale = 0, None, None
                 self.hflip, self.vflip = False, False
                 self.block = None
+                self.mean, self.std = None, None
 
         if self.ord_params is None and self.temperature_map:
             logger.warning('temperature_map is only a valid option when using ordinal regression.')
@@ -231,7 +234,9 @@ def _get_arg_dict(args):
             "gamma": args.gamma,
             "gain": args.gain,
             "block": args.block,
-            "noise_std": args.noise_std,
+            "noise_pwr": args.noise_pwr,
+            "mean": args.mean,
+            "std": args.std,
             "tfm_x": args.tfm_x,
             "tfm_y": args.tfm_y
         }

@@ -23,13 +23,14 @@ import os
 
 import nibabel as nib
 import numpy as np
+from PIL import Image
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.transforms import Compose
 from torch.utils.data.sampler import SubsetRandomSampler
 
-from niftidataset import MultimodalNiftiDataset, MultimodalImageDataset
+from niftidataset import MultimodalNiftiDataset, MultimodalImageDataset, split_filename
 import niftidataset.transforms as niftitfms
 
 from ..errors import SynthNNError
@@ -38,7 +39,6 @@ from ..plot.loss import plot_loss
 from .predict import Predictor
 from ..util.config import ExperimentConfig
 from ..util.helper import get_optim, init_weights
-from ..util.io import split_filename
 
 logger = logging.getLogger(__name__)
 
@@ -144,13 +144,23 @@ class Learner:
                 logger.info(log)
         return train_losses, valid_losses
 
-    def predict(self, fn, nsyn:int=1, temperature_map:bool=False, calc_var:bool=False):
+    def predict(self, fn:str, nsyn:int=1, temperature_map:bool=False, calc_var:bool=False):
         self.model.eval()
-        img_nib = nib.load(fn[0])
-        img = np.stack([np.asarray(nib.load(f).get_data(), dtype=np.float32) for f in fn])
-        out_img = self.predictor.predict(img, nsyn, temperature_map, calc_var)
-        out_img_nib = [nib.Nifti1Image(out_img[i], img_nib.affine, img_nib.header) for i, _ in enumerate(fn)]
-        return out_img_nib
+        f = fn[0].lower()
+        if f.endswith('.nii') or f.endswith('.nii.gz'):
+            img_nib = nib.load(fn[0])
+            img = np.stack([np.asarray(nib.load(f).get_data(), dtype=np.float32) for f in fn])
+            out = self.predictor.predict(img, nsyn, temperature_map, calc_var)
+            out_img = [nib.Nifti1Image(out[i], img_nib.affine, img_nib.header) for i, _ in enumerate(fn)]
+        elif f.endswith('.tif') or f.endswith('.tiff'):
+            out = self.predictor.img_predict(fn, nsyn, temperature_map, calc_var)
+            out_img = Image.fromarray(out)
+        elif f.endswith('.png'):
+            out = self.predictor.png_predict(fn, nsyn, temperature_map, calc_var)
+            out_img = Image.fromarray(out)
+        else:
+            raise SynthNNError(f'File: {fn[0]}, not supported.')
+        return out_img
 
     def _criterion(self, out, tgt):
         """ helper function to handle multiple outputs in model evaluation """
@@ -278,13 +288,14 @@ def get_dataloader(config:ExperimentConfig, tfms:List=None):
         config.n_jobs = num_cpus
 
     # define dataset and split into training/validation set
-    dataset = MultimodalNiftiDataset(config.source_dir, config.target_dir, Compose(tfms)) if config.ext is None else \
+    use_nii_ds = config.ext is None or 'nii' in config.ext
+    dataset = MultimodalNiftiDataset(config.source_dir, config.target_dir, Compose(tfms)) if use_nii_ds else \
               MultimodalImageDataset(config.source_dir, config.target_dir, Compose(tfms), ext='*.' + config.ext)
     logger.info(f'Number of training images: {len(dataset)}')
 
     if config.valid_source_dir is not None and config.valid_target_dir is not None:
         valid_dataset = MultimodalNiftiDataset(config.valid_source_dir, config.valid_target_dir,
-                                               Compose(tfms)) if config.ext is None else \
+                                               Compose(tfms)) if use_nii_ds else \
                         MultimodalImageDataset(config.valid_source_dir, config.valid_target_dir,
                                                Compose(tfms), ext='*.' + config.ext)
         logger.info(f'Number of validation images: {len(valid_dataset)}')
@@ -314,17 +325,20 @@ def get_data_augmentation(config:ExperimentConfig):
     """ get all data augmentation transforms for training """
     # control random cropping patch size (or if used at all)
     if config.ext is None:
-        cropper = niftitfms.RandomCrop3D(config.patch_size) if config.net3d else niftitfms.RandomCrop2D(config.patch_size,
-                                                                                                        config.sample_axis)
-        tfms = [cropper] if config.patch_size > 0 else [] if config.net3d else [niftitfms.RandomSlice(config.sample_axis)]
+        cropper = niftitfms.RandomCrop3D(config.patch_size) if config.net3d else \
+                  niftitfms.RandomCrop2D(config.patch_size, config.sample_axis)
+        tfms = [cropper] if config.patch_size > 0 else \
+               [] if config.net3d else \
+               [niftitfms.RandomSlice(config.sample_axis)]
     else:
         tfms = [niftitfms.RandomCrop(config.patch_size)] if config.patch_size > 0 else []
 
     # add data augmentation if desired
     if config.prob is not None:
         logger.info('Adding data augmentation transforms')
-        tfms.extend(niftitfms.get_transforms(config.prob, config.tfm_x, config.tfm_y, config.rotate, config.translate, config.scale,
-                                             config.vflip, config.hflip, config.gamma, config.gain, config.noise_std, config.block))
+        tfms.extend(niftitfms.get_transforms(config.prob, config.tfm_x, config.tfm_y, config.rotate, config.translate,
+                                             config.scale, config.vflip, config.hflip, config.gamma, config.gain,
+                                             config.noise_pwr, config.block, config.mean, config.std))
     else:
         logger.info('No data augmentation will be used (except random cropping if patch_size > 0)')
         tfms.append(niftitfms.ToTensor())

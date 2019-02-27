@@ -112,6 +112,24 @@ class Predictor:
         out_img = np.mean(out_img, axis=0) if not calc_var else np.var(out_img, axis=0)
         return out_img
 
+    def img_predict(self, img:np.ndarray, nsyn:int=1, temperature_map:bool=False, calc_var:bool=False) -> np.ndarray:
+        if img.ndim == 2: img = img[np.newaxis, ...]
+        out_img = np.zeros((nsyn, self.n_output) + img.shape[1:])
+        for i in range(nsyn):
+            out_img[i, ...] = self._fwd(torch.from_numpy(img).to(self.device), temperature_map)
+        out_img = np.mean(out_img, axis=0) if not calc_var else np.var(out_img, axis=0)
+        return out_img
+
+    def png_predict(self, img:np.ndarray, nsyn:int=1, temperature_map:bool=False, calc_var:bool=False,
+                    scale:bool=False) -> np.ndarray:
+        out = self.img_predict(img, nsyn, temperature_map, calc_var).squeeze()
+        if scale:
+            a = (img.max() - img.min()) / (out.max() - out.min())
+            b = img.min() - (a * out.min())
+            out = a * out + b
+        out_img = np.asarray(np.around(out), dtype=np.uint8)
+        return out_img
+
     def _fwd(self, img, temperature_map):
         return self.model.predict(img, temperature_map).cpu().detach().numpy()
 

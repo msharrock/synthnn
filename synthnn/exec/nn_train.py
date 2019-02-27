@@ -51,7 +51,8 @@ def arg_parser():
                          help="write the loss to a csv file of this filename [Default=None]")
     options.add_argument('--disable-cuda', action='store_true', default=False,
                          help='Disable CUDA regardless of availability')
-    options.add_argument('-e', '--ext', type=str, default=None, help='extension for 2d image [Default=None]')
+    options.add_argument('-e', '--ext', type=str, default=None, choices=('nii','tif','png'),
+                         help='extension of training/validation images [Default=None (.nii and .nii.gz)]')
     options.add_argument('-mp', '--fp16', action='store_true', default=False,
                          help='enable mixed precision training')
     options.add_argument('-gs', '--gpu-selector', type=int, nargs='+', default=None,
@@ -72,8 +73,8 @@ def arg_parser():
     options.add_argument('-ocf', '--out-config-file', type=str, default=None,
                          help='output a config file for the options used in this experiment '
                               '(saves them as a json file with the name as input in this argument)')
-    options.add_argument('-ps', '--patch-size', type=int, default=64,
-                         help='patch size^3 extracted from image [Default=64]')
+    options.add_argument('-ps', '--patch-size', type=int, default=0,
+                         help='patch size extracted from image [Default=0, i.e., whole slice or whole image]')
     options.add_argument('-pm','--pin-memory', action='store_true', default=False, help='pin memory in dataloader [Default=False]')
     options.add_argument('-pl', '--plot-loss', type=str, default=None,
                             help='plot the loss vs epoch and save at the filename provided here [Default=None]')
@@ -154,8 +155,13 @@ def arg_parser():
     aug_options.add_argument('-g', '--gamma', type=float, default=None, help='gamma (1-gamma,1+gamma) for (gain * x ** gamma) [Default=None]')
     aug_options.add_argument('-gn', '--gain', type=float, default=None, help='gain (1-gain,1+gain) for (gain * x ** gamma) [Default=None]')
     aug_options.add_argument('-blk', '--block', type=int, nargs=2, default=None, help='insert random blocks of this size range [Default=None]')
-    aug_options.add_argument('-std', '--noise-std', type=float, default=0, help='noise standard deviation/power [Default=0]')
-    aug_options.add_argument('-tx', '--tfm-x', action='store_true', default=True, help='apply transforms to x (change this with config file) [Default=True]')
+    aug_options.add_argument('-pwr', '--noise-pwr', type=float, default=0, help='noise standard deviation/power [Default=0]')
+    aug_options.add_argument('-mean', '--mean', type=float, nargs='+', default=None,
+                             help='normalize input images with this mean (one entry per input directory) [Default=None]')
+    aug_options.add_argument('-std', '--std', type=float, nargs='+', default=None,
+                             help='normalize input images with this std (one entry per input directory) [Default=None]')
+    aug_options.add_argument('-tx', '--tfm-x', action='store_true', default=True,
+                             help='apply transforms to x (change this with config file) [Default=True]')
     aug_options.add_argument('-ty', '--tfm-y', action='store_true', default=False, help='apply transforms to y [Default=False]')
     return parser
 

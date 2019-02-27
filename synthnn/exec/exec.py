@@ -10,12 +10,14 @@ Author: Jacob Reinhold (jacob.reinhold@jhu.edu)
 Created on: Jan 28, 2018
 """
 
-__all__ = ['get_args',
+__all__ = ['determine_ext',
+           'get_args',
            'setup_log']
 
 import logging
 import sys
 
+from niftidataset import glob_imgs
 from synthnn import SynthNNError, ExperimentConfig
 
 logger = logging.getLogger(__name__)
@@ -46,3 +48,16 @@ def get_args(args, arg_parser=None):
         fn = sys.argv[1:][0] if args is None else args[0]
         args = ExperimentConfig.load_json(fn)
     return args, no_config_file
+
+
+def determine_ext(d):
+    """ given a directory determine if it contains supported images """
+    exts = ('*.nii*', '*.tif*', '*.png')
+    contains = [len(glob_imgs(d, ext)) > 0 for ext in exts]
+    if sum(contains) == 0:
+        raise SynthNNError(f'Directory {d} contains no supported images.')
+    if sum(contains) > 1:
+        raise SynthNNError(f'Directory {d} contains more than two types of supported images, '
+                           f'remove unwanted images from directory')
+    ext = [e for c, e in zip(contains, exts) if c][0]
+    return ext
