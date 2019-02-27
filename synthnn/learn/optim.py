@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-synthnn.util.optim
+synthnn.learn.optim
 
 define optimizer auxillary functions for neural network training
 
@@ -17,7 +17,7 @@ __all__ = ['BurnCosineLR',
 import math
 
 import torch
-from torch.optim import Optimizer
+from torch.optim import Optimizer, Adam
 from torch.optim.lr_scheduler import _LRScheduler
 
 
@@ -166,3 +166,8 @@ class AdaBound(Optimizer):
 class AMSBound(AdaBound):
     def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), final_lr=0.1, gamma=1e-3, eps=1e-8, weight_decay=0):
         super(AMSBound, self).__init__(params, lr, betas, final_lr, gamma, eps, weight_decay, True)
+
+
+class AMSGrad(Adam):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999), eps=1e-8, weight_decay=0):
+        super(AMSGrad, self).__init__(params, lr, betas, eps, weight_decay, True)

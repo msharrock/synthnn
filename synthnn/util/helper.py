@@ -11,6 +11,7 @@ Created on: Nov 2, 2018
 """
 
 __all__ = ['get_act',
+           'get_loss',
            'get_norm2d',
            'get_norm3d',
            'get_optim',
@@ -18,10 +19,15 @@ __all__ = ['get_act',
 
 from typing import Optional, Union
 
+import logging
+
 import torch
 from torch import nn
 
 from ..errors import SynthNNError
+from ..learn.loss import NCCLoss
+
+logger = logging.getLogger(__name__)
 
 activation = Union[nn.modules.activation.ReLU, nn.modules.activation.LeakyReLU,
                    nn.modules.activation.Tanh, nn.modules.activation.Sigmoid]
@@ -30,7 +36,7 @@ normalization_3d_layer = Union[nn.modules.instancenorm.InstanceNorm3d,
                                nn.modules.batchnorm.BatchNorm3d]
 
 
-def get_act(name: str, inplace: bool=True, params: Optional[dict]=None) -> activation:
+def get_act(name:str, inplace:bool=True, params:Optional[dict]=None) -> activation:
     """
     get activation module from pytorch
     must be one of: relu, lrelu, linear, tanh, sigmoid
@@ -66,7 +72,7 @@ def get_act(name: str, inplace: bool=True, params: Optional[dict]=None) -> activ
     return act
 
 
-def get_norm2d(name: str, num_features: int, params: Optional[dict]=None) -> normalization_3d_layer:
+def get_norm2d(name:str, num_features:int, params:Optional[dict]=None) -> normalization_3d_layer:
     """
     get a 2d normalization module from pytorch
     must be one of: instance, batch, none
@@ -93,7 +99,7 @@ def get_norm2d(name: str, num_features: int, params: Optional[dict]=None) -> nor
     return norm
 
 
-def get_norm3d(name: str, num_features: int, params: Optional[dict]=None) -> normalization_3d_layer:
+def get_norm3d(name:str, num_features:int, params:Optional[dict]=None) -> normalization_3d_layer:
     """
     get a 3d normalization module from pytorch
     must be one of: instance, batch, none
@@ -120,7 +126,7 @@ def get_norm3d(name: str, num_features: int, params: Optional[dict]=None) -> nor
     return norm
 
 
-def get_optim(name):
+def get_optim(name:str):
     """ get an optimizer by name """
     if name.lower() == 'adam':
         optimizer = torch.optim.Adam
@@ -131,14 +137,33 @@ def get_optim(name):
     elif name.lower() == 'adagrad':
         optimizer = torch.optim.adagrad
     elif name.lower() == 'adabound':
-        from .optim import AdaBound
+        from ..learn.optim import AdaBound
         optimizer = AdaBound
     elif name.lower() == 'amsbound':
-        from .optim import AMSBound
+        from ..learn.optim import AMSBound
         optimizer = AMSBound
+    elif name.lower() == 'amsgrad':
+        from ..learn.optim import AMSGrad
+        optimizer = AMSGrad
     else:
         raise SynthNNError(f'Optimizer: "{name}" not a valid optimizer routine or not supported.')
     return optimizer
+
+
+def get_loss(name:str):
+    """ get a loss function by name """
+    if name == 'mse' or name is None:
+        loss = nn.MSELoss()
+    elif name == 'ncc':
+        loss = NCCLoss()
+    elif name == 'zncc':
+        loss = NCCLoss(True)
+    elif name == 'mae':
+        loss = nn.L1Loss()
+    else:
+        raise ValueError(f'Loss function {name} not supported.')
+    return loss
+
 
 
 def init_weights(net, init_type='kaiming', init_gain=0.02):

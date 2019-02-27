@@ -19,7 +19,7 @@ from glob import glob
 import os
 
 
-def split_filename(filepath: str) -> Tuple[str, str, str]:
+def split_filename(filepath:str) -> Tuple[str,str,str]:
     """ split a filepath into the directory, base, and extension """
     path = os.path.dirname(filepath)
     filename = os.path.basename(filepath)
@@ -30,7 +30,7 @@ def split_filename(filepath: str) -> Tuple[str, str, str]:
     return path, base, ext
 
 
-def glob_nii(path: str) -> List[str]:
+def glob_nii(path:str) -> List[str]:
     """ grab all nifti files in a directory and sort them for consistency """
     fns = sorted(glob(os.path.join(path, '*.nii*')))
     return fns

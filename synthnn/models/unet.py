@@ -24,7 +24,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from synthnn import get_act, get_norm3d, get_norm2d, get_loss, OrdLoss, SelfAttention
+from ..util import get_act, get_norm3d, get_norm2d, get_loss
+from ..learn import OrdLoss, SelfAttention
 
 logger = logging.getLogger(__name__)
 
