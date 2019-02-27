@@ -70,7 +70,8 @@ class Learner:
         if use_cuda: model.cuda(device=device)
         train_loader, valid_loader = get_dataloader(config)
         logger.info(('Max ' if config.lr_scheduler else '') + f'LR: {config.learning_rate:.5f}')
-        optimizer = get_optim(config.optimizer)(model.parameters(), lr=config.learning_rate)
+        optimizer = get_optim(config.optimizer)(model.parameters(), lr=config.learning_rate,
+                                                weight_decay=config.weight_decay)
         if os.path.isfile(config.trained_model) and not config.no_load_opt:
             optimizer = load_opt(optimizer, config.trained_model)
         model.train()
@@ -104,10 +105,10 @@ class Learner:
             if use_valid: self.model.train(True)
             for src, tgt in self.train_loader:
                 src, tgt = src.to(self.device), tgt.to(self.device)
+                self.optimizer.zero_grad()
                 out = self.model(src)
                 loss = self._criterion(out, tgt)
                 t_losses.append(loss.item())
-                self.optimizer.zero_grad()
                 if hasattr(self, 'amp_handle'):
                     with self.amp_handle.scale_loss(loss, self.optimizer) as scaled_loss:
                         scaled_loss.backward()
@@ -179,12 +180,6 @@ class Learner:
         logger.info('Enabling burn-in cosine annealing LR scheduler')
         self.scheduler = BurnCosineLR(self.optimizer, n_epochs)
 
-    @staticmethod
-    def plot_loss(train_losses:List, validation_losses:List, filename:str=None, plot_error:bool=False):
-        """ plot training and validation losses on the same plot (with or without error bars) """
-        ax = plot_loss(train_losses, ecolor='darkorchid', label='Train', plot_error=plot_error)
-        _ = plot_loss(validation_losses, filename=filename, ecolor='firebrick', ax=ax, label='Validation',
-                      plot_error=plot_error)
 
     def load(self, fn):
         self.model, _ = load_model(self.model, fn, self.device)
@@ -195,6 +190,28 @@ class Learner:
         state_dict = self.model.module.state_dict() if hasattr(self.model, 'module') else self.model.state_dict()
         state = {'epoch': epoch, 'state_dict': state_dict, 'optimizer': self.optimizer.state_dict()}
         torch.save(state, fn)
+
+    @staticmethod
+    def plot_loss(train_loss:List, valid_loss:List, fn:str=None, plot_error:bool=False):
+        """ plot training and validation losses on the same plot (with or without error bars) """
+        ax = plot_loss(train_loss, ecolor='darkorchid', label='Train', plot_error=plot_error)
+        _ = plot_loss(valid_loss, filename=fn, ecolor='firebrick', ax=ax, label='Validation', plot_error=plot_error)
+
+    @staticmethod
+    def write_csv(train_loss:List, valid_loss:List, fn:str):
+        """ write training and validation losses to a csv file """
+        import csv
+        head = ['epochs','avg train','std train','avg valid','std valid']
+        epochs = list(range(1, len(train_loss) + 1))
+        avg_tl = [np.mean(losses) for losses in train_loss]
+        std_tl = [np.std(losses) for losses in train_loss]
+        avg_vl = [np.mean(losses) for losses in valid_loss]
+        std_vl = [np.std(losses) for losses in valid_loss]
+        out = np.vstack([epochs, avg_tl, std_tl, avg_vl, std_vl]).T
+        with open(fn, "w") as f:
+            wr = csv.writer(f)
+            wr.writerow(head)
+            wr.writerows(out)
 
 
 def get_model(config:ExperimentConfig, enable_dropout:bool=True, device:Optional[torch.device]=None):

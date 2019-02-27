@@ -47,6 +47,8 @@ def arg_parser():
                          help='gradient clipping threshold [Default=None]')
     options.add_argument('-chk', '--checkpoint', type=int, default=None,
                          help='save the model every `checkpoint` epochs [Default=None]')
+    options.add_argument('-csv', '--write-csv', type=str, default=None,
+                         help="write the loss to a csv file of this filename [Default=None]")
     options.add_argument('--disable-cuda', action='store_true', default=False,
                          help='Disable CUDA regardless of availability')
     options.add_argument('-e', '--ext', type=str, default=None, help='extension for 2d image [Default=None]')
@@ -89,6 +91,8 @@ def arg_parser():
                                'see -vs for default action if this is not provided [Default=None]')
     options.add_argument('-v', '--verbosity', action="count", default=0,
                          help="increase output verbosity (e.g., -vv is more than -v)")
+    options.add_argument('-wd', '--weight-decay', type=float, default=0,
+                         help="weight decay parameter for optimizer [Default=0]")
 
     nn_options = parser.add_argument_group('Neural Network Options')
     nn_options.add_argument('-ac', '--activation', type=str, default='relu',
@@ -181,8 +185,9 @@ def main(args=None):
         # save the trained model
         learner.save(args.trained_model, args.n_epochs)
 
-        # plot the loss vs epoch (if desired)
+        # plot/write the loss vs epoch (if desired)
         if args.plot_loss is not None: learner.plot_loss(train_loss, valid_loss, args.plot_loss)
+        if args.write_csv is not None: learner.write_csv(train_loss, valid_loss, args.write_csv)
 
         return 0
     except Exception as e:

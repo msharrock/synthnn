@@ -165,7 +165,6 @@ def get_loss(name:str):
     return loss
 
 
-
 def init_weights(net, init_type='kaiming', init_gain=0.02):
     """
     Initialize network weights

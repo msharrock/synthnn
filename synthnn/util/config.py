@@ -71,6 +71,8 @@ class ExperimentConfig(dict):
         self.valid_source_dir = None
         self.valid_split = None
         self.valid_target_dir = None
+        self.weight_decay = None
+        self.write_csv = None
         self.calc_var = None
         self.monte_carlo = None
         self.temperature_map = None
@@ -201,7 +203,9 @@ def _get_arg_dict(args):
             "plot_loss": args.plot_loss,
             "valid_source_dir": args.valid_source_dir,
             "valid_split": args.valid_split,
-            "valid_target_dir": args.valid_target_dir
+            "valid_target_dir": args.valid_target_dir,
+            "weight_decay": args.weight_decay,
+            "write_csv": args.write_csv
         },
         "Prediction Options": {
             "calc_var": False if not hasattr(args,'calc_var') else args.calc_var,
