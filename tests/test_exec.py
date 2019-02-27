@@ -45,13 +45,14 @@ class TestCLI(unittest.TestCase):
         self.predict_args = f'-s {self.train_dir} -o {self.out_dir}/test'.split()
         self.jsonfn = f'{self.out_dir}/test.json'
 
-    def __modify_ocf(self, jsonfn, multi=1, temperature_map=False, calc_var=False):
+    def __modify_ocf(self, jsonfn, multi=1, temperature_map=False, calc_var=False, mc=None):
         with open(jsonfn, 'r') as f:
             arg_dict = json.load(f)
         with open(jsonfn, 'w') as f:
             arg_dict['Required']['predict_dir'] = [f'{self.nii_dir}'] * multi
             arg_dict['Required']['predict_out'] = f'{self.out_dir}/test'
             arg_dict['Prediction Options']['calc_var'] = calc_var
+            arg_dict['Prediction Options']['monte_carlo'] = mc
             arg_dict['Prediction Options']['temperature_map'] = temperature_map
             json.dump(arg_dict, f, sort_keys=True, indent=2)
 
@@ -108,6 +109,15 @@ class TestCLI(unittest.TestCase):
     def test_nconv_amsbound_cli(self):
         args = self.train_args + (f'-o {self.out_dir}/nconv_patch.mdl -na nconv -ne 3 -nl 1 -ps 16 '
                                   f'-ocf {self.jsonfn} -bs 2 -lrs -v -opt amsbound').split()
+        retval = nn_train(args)
+        self.assertEqual(retval, 0)
+        self.__modify_ocf(self.jsonfn)
+        retval = nn_predict([self.jsonfn])
+        self.assertEqual(retval, 0)
+
+    def test_nconv_amsgrad_cli(self):
+        args = self.train_args + (f'-o {self.out_dir}/nconv_patch.mdl -na nconv -ne 3 -nl 1 -ps 16 '
+                                  f'-ocf {self.jsonfn} -bs 2 -lrs -v -opt amsgrad').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)
@@ -258,18 +268,22 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(retval, 0)
 
     def test_unet_ord_2d_cli(self):
-        train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
-                             f'-ocf {self.jsonfn} -ord 1 10 10 -vs 0').split()
-        retval = nn_train(args)
-        self.assertEqual(retval, 0)
-        self.__modify_ocf(self.jsonfn)
-        retval = nn_predict([self.jsonfn])
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
+            valid = f'-vsd {self.train_dir}/1/ -vtd {self.train_dir}/2/'
+            args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 2 -nl 3 -cbp 1 -bs 4 -e tif '
+                                 f'-ocf {self.jsonfn} -ord 1 10 10 {valid} -dp 0.5').split()
+            retval = nn_train(args)
+            self.assertEqual(retval, 0)
+            self.__modify_ocf(self.jsonfn, mc=2)
+            retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 
     def test_unet_ord_3d_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
-                                  f'-ocf {self.jsonfn} -ord 1 10 2 -vs 0 -ns').split()
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 2 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
+                                  f'-ocf {self.jsonfn} -ord 1 10 2 -vs 0.5 -ns -dp 0.5').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
         self.__modify_ocf(self.jsonfn)
@@ -278,30 +292,30 @@ class TestCLI(unittest.TestCase):
 
     def test_unet_ord_2d_temperature_map_calc_var_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
-                             f'-ocf {self.jsonfn} -ord 1 10 4 -vs 0 -ns').split()
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 2 -nl 3 -cbp 1 -bs 4 -e tif '
+                             f'-ocf {self.jsonfn} -ord 1 10 4 -vs 0.5 -ns -dp 0.5').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
-        self.__modify_ocf(self.jsonfn, temperature_map=True, calc_var=True)
+        self.__modify_ocf(self.jsonfn, temperature_map=True, calc_var=True, mc=2)
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 
     def test_unet_ord_2d_temperature_map_cli(self):
         train_args = f'-s {self.train_dir}/1/ -t {self.train_dir}/2/'.split()
-        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -e tif '
-                             f'-ocf {self.jsonfn} -ord 1 10 3 -vs 0 -ns').split()
+        args = train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 2 -nl 3 -cbp 1 -bs 4 -e tif '
+                             f'-ocf {self.jsonfn} -ord 1 10 3 -vs 0.5 -ns -dp 0.5').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
-        self.__modify_ocf(self.jsonfn, temperature_map=True)
+        self.__modify_ocf(self.jsonfn, temperature_map=True, mc=2)
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 
     def test_unet_ord_3d_temperature_map_cli(self):
-        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 1 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
-                                  f'-ocf {self.jsonfn} -ord 1 10 5 -vs 0').split()
+        args = self.train_args + (f'-o {self.out_dir}/unet.mdl -na unet -ne 2 -nl 3 -cbp 1 -bs 4 -ps 16 -3d '
+                                  f'-ocf {self.jsonfn} -ord 1 10 5 -vs 0.5 -dp 0.5').split()
         retval = nn_train(args)
         self.assertEqual(retval, 0)
-        self.__modify_ocf(self.jsonfn, temperature_map=True)
+        self.__modify_ocf(self.jsonfn, temperature_map=True, mc=2)
         retval = nn_predict([self.jsonfn])
         self.assertEqual(retval, 0)
 

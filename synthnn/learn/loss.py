@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-synthnn.util.loss
+synthnn.learn.loss
 
 define general loss functions for neural network training
 
@@ -10,8 +10,7 @@ Author: Jacob Reinhold (jacob.reinhold@jhu.edu)
 Created on: Feb 20, 2018
 """
 
-__all__ = ['get_loss',
-           'NCCLoss',
+__all__ = ['NCCLoss',
            'OrdLoss',
            'VAELoss']
 
@@ -21,20 +20,6 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
-
-
-def get_loss(name):
-    if name == 'mse' or name is None:
-        loss = nn.MSELoss()
-    elif name == 'ncc':
-        loss = NCCLoss()
-    elif name == 'zncc':
-        loss = NCCLoss(True)
-    elif name == 'mae':
-        loss = nn.L1Loss()
-    else:
-        raise ValueError(f'Loss function {name} not supported.')
-    return loss
 
 
 class NCCLoss(nn.Module):
@@ -90,7 +75,8 @@ class VAELoss(nn.Module):
         super(VAELoss, self).__init__()
         self.mse_loss = nn.MSELoss(reduction="sum")
 
-    def forward(self, x, recon_x, mu, logvar):
+    def forward(self, x, xhat):
+        recon_x, mu, logvar = xhat
         MSE = self.mse_loss(recon_x, x)
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2)-logvar.exp())
         return MSE + KLD

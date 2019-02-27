@@ -21,7 +21,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from .unet import Unet
-from ..util.loss import VAELoss
+from synthnn.learn.loss import VAELoss
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-synthnn.util.layers
+synthnn.learn.layers
 
 define auxillary layers for defining neural networks in pytorch
 
