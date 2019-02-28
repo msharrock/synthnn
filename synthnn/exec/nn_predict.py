@@ -66,15 +66,15 @@ def main(args=None):
 
         for k, fn in enumerate(predict_fns):
             _, base, ext = split_filename(fn[0])
-            logger.info(f'Starting synthesis of image: {base}. ({k+1}/{n_imgs})')
+            logger.info(f'Starting synthesis of image: {base} ({k+1}/{n_imgs})')
             out_imgs = learner.predict(fn, nsyn, args.temperature_map, args.calc_var)
             for i, oin in enumerate(out_imgs):
-                out_fn = output_dir + f'{k}_{i}.{ext}'
+                out_fn = output_dir + f'{k}_{i}{ext}'
                 if hasattr(oin,'to_filename'):
                     oin.to_filename(out_fn)
                 else:
                     oin.save(out_fn)
-                logger.info(f'Finished synthesis. Saved as: {out_fn}.')
+                logger.info(f'Finished synthesis. Saved as: {out_fn}')
 
         return 0
     except Exception as e:
